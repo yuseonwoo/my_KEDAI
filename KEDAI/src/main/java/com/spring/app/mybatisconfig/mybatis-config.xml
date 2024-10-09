@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE configuration PUBLIC "-//mybatis.org//DTD Config 3.0//EN" "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+	
+	<!-- domain(VO) package 선언 -->
+	<typeAliases>
+		<typeAlias type="com.spring.app.domain.MemberVO" alias="MemberVO" />
+		<typeAlias type="com.spring.app.domain.BusVO" alias="BusVO" />
+		<typeAlias type="com.spring.app.domain.PartnerVO" alias="PartnerVO" />
+		<typeAlias type="com.spring.app.domain.BoardVO" alias="BoardVO" />
+		<typeAlias type="com.spring.app.domain.SalaryVO" alias="SalaryVO" />
+		<typeAlias type="com.spring.app.domain.RoomMainVO" alias="RoomMainVO" />
+		<typeAlias type="com.spring.app.domain.RoomSubVO" alias="RoomSubVO" />
+		<typeAlias type="com.spring.app.domain.CarVO" alias="CarVO" />
+		<typeAlias type="com.spring.app.domain.Car_shareVO" alias="Car_shareVO" />
+		<typeAlias type="com.spring.app.domain.Day_shareVO" alias="Day_shareVO" />
+		<typeAlias type="com.spring.app.domain.CommunityVO" alias="CommunityVO" />
+		<typeAlias type="com.spring.app.domain.CommentVO" alias="CommentVO" />
+		<typeAlias type="com.spring.app.domain.DocVO" alias="DocVO" />
+		<typeAlias type="com.spring.app.domain.MinutesVO" alias="MinutesVO" />
+		<typeAlias type="com.spring.app.domain.ApprovalVO" alias="ApprovalVO" /> 
+	</typeAliases>	
+	
+</configuration>

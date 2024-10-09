@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="salary">
+
+   <resultMap type="HashMap" id="memberMap">
+      <result property="EMPID"       column="empid"       javaType="String" />
+      <result property="NAME"    column="name"       javaType="String" />
+      <result property="FK_DEPT_CODE" column="fk_dept_code"    javaType="String" />
+      <result property="SALARY" column="salary"    javaType="String" />
+   </resultMap>
+   
+   <resultMap type="HashMap" id="salaryMap">
+      <result property="salary_seq"       column="salary_seq"       javaType="String" />
+      <result property="fk_empid"    column="fk_empid"       javaType="String" />
+      <result property="payment_date" column="payment_date"    javaType="String" />
+      <result property="work_day" column="work_day"    javaType="String" />
+      <result property="work_day_plus" column="work_day_plus"    javaType="String" />
+      <result property="base_salary" column="base_salary"    javaType="String" />
+      <result property="meal_pay" column="meal_pay"    javaType="String" />
+      <result property="annual_pay" column="annual_pay"    javaType="String" />
+      <result property="overtime_pay" column="overtime_pay"    javaType="String" />
+      <result property="income_tax" column="income_tax"    javaType="String" />
+      <result property="local_income_tax" column="local_income_tax"    javaType="String" />
+      <result property="national_pen" column="national_pen"    javaType="String" />
+      <result property="health_ins" column="health_ins"    javaType="String" />
+      <result property="employment_ins" column="employment_ins"    javaType="String" />
+   </resultMap>
+   
+   <select id="memberListView" parameterType="String" resultType="MemberVO">
+      select empid, name, fk_dept_code, salary
+      from tbl_employees
+   </select>
+   
+   <insert id="salaryCal" parameterType="SalaryVO">
+    INSERT INTO tbl_sal (
+        salary_seq, fk_empid, payment_date, work_day, work_day_plus, 
+        base_salary, meal_pay, annual_pay, overtime_pay, 
+        income_tax, local_income_tax, national_pen, health_ins, employment_ins
+    )
+    SELECT 
+        salary_seq.nextval,
+        e.empid, 
+        #{payment_date}, 
+        #{work_day},  
+        5, 
+        e.salary AS base_salary, 
+        100000 AS meal_pay, 
+        50 AS annual_pay, 
+        70 AS overtime_pay, 
+        (e.salary * 0.0833) * 0.1 AS income_tax, 
+        ((e.salary * 0.0833) * 0.1) * 0.1 AS local_income_tax, 
+        (e.salary * 0.0833) * 0.045 AS national_pen,
+        (e.salary * 0.0833) * 0.035 AS health_ins, 
+        (e.salary * 0.0833) * 0.009 AS employment_ins 
+    FROM 
+        tbl_employees e
+    WHERE 
+        e.empid = #{fk_empid}
+</insert>
+    
+      <select id="getEmployeeById" parameterType="string" resultType="MemberVO">
+        SELECT
+          e.name AS name,
+          j.job_name AS job_name,
+          d.dept_name AS dept_name,
+          TO_CHAR(e.hire_date, 'YYYY-MM-DD') AS hire_date
+      FROM
+          tbl_employees e
+      JOIN
+          tbl_job j ON e.fk_job_code = j.job_code
+      JOIN
+          tbl_dept d ON e.fk_dept_code = d.dept_code
+      WHERE
+          e.empid =  #{employeeId}
+    </select>
+    
+    <select id="getSalaryDetailsById" parameterType="map" resultType="SalaryVO">
+        SELECT *
+      FROM tbl_sal
+      WHERE to_char(payment_date, 'YYYY-MM') = #{yearMonth}
+   </select>
+   
+   <select id="getAllSalaryData" resultType="SalaryVO">
+      select * from tbl_sal
+   </select>
+   
+</mapper>

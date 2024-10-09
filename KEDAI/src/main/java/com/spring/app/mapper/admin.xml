@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="admin">
+
+	<select id="dept_select" resultType="com.spring.app.domain.DeptVO">
+		select dept_code, dept_name
+		from tbl_dept
+		order by dept_code asc
+	</select>
+	
+	<select id="job_select" resultType="com.spring.app.domain.JobVO">
+		select job_code, job_name
+		from tbl_job
+		order by job_code asc
+	</select>
+		<select id="idDuplicateCheck" resultType="String">
+		select empid
+		from tbl_employees
+		where empid = #{empid}
+	</select>
+	
+	<select id="emailDuplicateCheck" resultType="String">
+		select email
+		from tbl_employees
+		where email = #{email}
+	</select>
+	
+	<insert id="empRegister" parameterType="MemberVO">
+		insert into tbl_employees(empid, pwd, name, nickname, jubun, email, mobile, postcode, address, detailaddress, extraaddress, imgfilename, orgimgfilename, hire_date, salary, commission_pct, fk_dept_code, fk_job_code, dept_tel)
+		<choose>
+			<when test="(fk_dept_code == null and dept_tel == null) and fk_job_code == null">
+    			values(#{empid}, #{pwd}, #{name}, #{nickname}, #{jubun}, #{email}, #{mobile}, #{postcode}, #{address}, #{detailaddress}, #{extraaddress}, #{imgfilename}, #{orgimgfilename}, to_date(#{hire_date}, 'yyyy-mm-dd'), to_number(#{salary}), 0, null, null, null)
+	    	</when>
+	    	<when test="(fk_dept_code == null and dept_tel == null) and fk_job_code != null">
+    			values(#{empid}, #{pwd}, #{name}, #{nickname}, #{jubun}, #{email}, #{mobile}, #{postcode}, #{address}, #{detailaddress}, #{extraaddress}, #{imgfilename}, #{orgimgfilename}, to_date(#{hire_date}, 'yyyy-mm-dd'), to_number(#{salary}), 0, null, #{fk_job_code}, null)
+	    	</when>
+	    	<when test="(fk_dept_code != null and dept_tel != null) and fk_job_code == null">
+    			values(#{empid}, #{pwd}, #{name}, #{nickname}, #{jubun}, #{email}, #{mobile}, #{postcode}, #{address}, #{detailaddress}, #{extraaddress}, #{imgfilename}, #{orgimgfilename}, to_date(#{hire_date}, 'yyyy-mm-dd'), to_number(#{salary}), 0, #{fk_dept_code}, null, #{dept_tel})
+	    	</when>
+	    	<when test="(fk_dept_code != null and dept_tel != null) and fk_job_code != null">
+    			values(#{empid}, #{pwd}, #{name}, #{nickname}, #{jubun}, #{email}, #{mobile}, #{postcode}, #{address}, #{detailaddress}, #{extraaddress}, #{imgfilename}, #{orgimgfilename}, to_date(#{hire_date}, 'yyyy-mm-dd'), to_number(#{salary}), 0, #{fk_dept_code}, #{fk_job_code}, #{dept_tel})
+	    	</when>
+		</choose>
+	</insert>
+	
+	<resultMap type="HashMap" id="empCntByDeptname_Map">
+    	<result property="dept_name"   column="dept_name"   javaType="String" />
+       	<result property="cnt"         column="cnt"         javaType="String" />
+    	<result property="percentage"  column="percentage"  javaType="String" />
+   	</resultMap>
+	
+	<select id="empCntByDeptname" resultMap="empCntByDeptname_Map">
+		select NVL(dept_name, '부서없음') AS dept_name
+		     , count(*) AS cnt
+		     , round(count(*) / (select count(*) from tbl_employees) * 100, 2) AS percentage
+		from tbl_employees E LEFT JOIN tbl_dept D
+		ON E.fk_dept_code = D.dept_code
+		group by D.dept_name
+		order by cnt desc, dept_name asc
+	</select>
+	
+	<resultMap type="HashMap" id="empCntByGender_Map">
+    	<result property="gender"      column="gender"      javaType="String" />
+       	<result property="cnt"         column="cnt"         javaType="String" />
+    	<result property="percentage"  column="percentage"  javaType="String" />
+   	</resultMap>
+	
+	<select id="empCntByGender" resultMap="empCntByGender_Map">
+		SELECT gender
+		     , count(*) AS cnt
+		     , round(count(*) / (select count(*) from tbl_employees) * 100, 1) AS percentage
+		FROM 
+		(
+		    select func_gender(jubun) AS gender
+		    from tbl_employees
+		)
+		GROUP BY gender
+		order by cnt desc
+	</select>
+	
+	<select id="genderCntSpecialDeptname" parameterType="String" resultMap="empCntByGender_Map">
+		SELECT gender
+		     , count(*) AS cnt
+		     , round(count(*) / (select count(*) from tbl_employees) * 100, 2) AS percentage
+		FROM
+		(
+		    select fk_dept_code, func_gender(jubun) AS gender
+		    from tbl_employees
+		) E LEFT JOIN tbl_dept D
+		ON E.fk_dept_code = D.dept_code
+		<if test="dept_name != '부서없음'">
+			WHERE D.dept_name = #{dept_name}
+		</if>
+		<if test="dept_name == '부서없음'">
+			WHERE D.dept_name is null
+		</if>
+		GROUP BY gender
+		ORDER BY gender
+	</select>
+	
+	<resultMap type="HashMap" id="empCntByGenderHireYear_Map">
+		<result property="gender"      column="gender"      javaType="String" />
+		<result property="Y2010"       column="Y2010"       javaType="String" />
+		<result property="Y2011"       column="Y2011"       javaType="String" />
+		<result property="Y2012"       column="Y2012"       javaType="String" />
+		<result property="Y2013"       column="Y2013"       javaType="String" />
+		<result property="Y2014"       column="Y2014"       javaType="String" />
+		<result property="Y2015"       column="Y2015"       javaType="String" />
+		<result property="Y2016"       column="Y2016"       javaType="String" />
+		<result property="Y2017"       column="Y2017"       javaType="String" />
+		<result property="Y2018"       column="Y2018"       javaType="String" />
+		<result property="Y2019"       column="Y2019"       javaType="String" />
+		<result property="Y2020"       column="Y2020"       javaType="String" />
+		<result property="Y2021"  	   column="Y2021"       javaType="String" />
+		<result property="Y2022"  	   column="Y2022"       javaType="String" />
+		<result property="Y2023"  	   column="Y2023"       javaType="String" />
+		<result property="Y2024"       column="Y2024"       javaType="String" />
+		<result property="totalCount"  column="totalCount"  javaType="String" />
+	</resultMap>
+
+	<select id="empCntByGenderHireYear" resultMap="empCntByGenderHireYear_Map">
+		select func_gender(jubun) AS gender
+		     , sum(decode(EXTRACT(YEAR FROM TO_DATE(hire_date, 'YY/MM/DD')), 2010, 1, 0)) AS Y2010
+		     , sum(decode(EXTRACT(YEAR FROM TO_DATE(hire_date, 'YY/MM/DD')), 2011, 1, 0)) AS Y2011
+		     , sum(decode(EXTRACT(YEAR FROM TO_DATE(hire_date, 'YY/MM/DD')), 2012, 1, 0)) AS Y2012
+		     , sum(decode(EXTRACT(YEAR FROM TO_DATE(hire_date, 'YY/MM/DD')), 2013, 1, 0)) AS Y2013
+		     , sum(decode(EXTRACT(YEAR FROM TO_DATE(hire_date, 'YY/MM/DD')), 2014, 1, 0)) AS Y2014
+		     , sum(decode(EXTRACT(YEAR FROM TO_DATE(hire_date, 'YY/MM/DD')), 2015, 1, 0)) AS Y2015
+		     , sum(decode(EXTRACT(YEAR FROM TO_DATE(hire_date, 'YY/MM/DD')), 2016, 1, 0)) AS Y2016
+		     , sum(decode(EXTRACT(YEAR FROM TO_DATE(hire_date, 'YY/MM/DD')), 2017, 1, 0)) AS Y2017
+		     , sum(decode(EXTRACT(YEAR FROM TO_DATE(hire_date, 'YY/MM/DD')), 2018, 1, 0)) AS Y2018
+		     , sum(decode(EXTRACT(YEAR FROM TO_DATE(hire_date, 'YY/MM/DD')), 2019, 1, 0)) AS Y2019
+		     , sum(decode(EXTRACT(YEAR FROM TO_DATE(hire_date, 'YY/MM/DD')), 2020, 1, 0)) AS Y2020
+		     , sum(decode(EXTRACT(YEAR FROM TO_DATE(hire_date, 'YY/MM/DD')), 2021, 1, 0)) AS Y2021
+		     , sum(decode(EXTRACT(YEAR FROM TO_DATE(hire_date, 'YY/MM/DD')), 2022, 1, 0)) AS Y2022
+		     , sum(decode(EXTRACT(YEAR FROM TO_DATE(hire_date, 'YY/MM/DD')), 2023, 1, 0)) AS Y2023
+		     , sum(decode(EXTRACT(YEAR FROM TO_DATE(hire_date, 'YY/MM/DD')), 2024, 1, 0)) AS Y2024
+			 , count(*) AS totalCount
+		from tbl_employees
+		group by func_gender(jubun)
+		order by gender
+	</select>
+	
+	<insert id="insert_accessTime" parameterType="HashMap">
+		insert into tbl_empManager_accessTime(accessTime_seq, pageUrl, fk_empid, clientIP, accessTime)
+		values(empManager_accessTime_seq.nextval, #{pageUrl}, #{fk_empid}, #{clientIP}, #{accessTime})
+	</insert>
+	
+  	<resultMap type="HashMap" id="pageurlEmpname_Map">
+    	<result property="pagename"   column="PAGENAME"   javaType="String" />
+       	<result property="name"       column="NAME"       javaType="String" />
+       	<result property="cnt"        column="CNT"        javaType="String" />
+   	</resultMap>
+	
+	<select id="pageurlEmpname" resultMap="pageurlEmpname_Map">
+		SELECT case 
+		       when instr(PAGEURL, 'approval/main.kedai', 1, 1) &gt; 0 then '전자결재' 
+		       when instr(PAGEURL, 'pay_stub.kedai', 1, 1) &gt; 0 then '급여명세서'
+		       when instr(PAGEURL, 'roomResercation.kedai', 1, 1) &gt; 0 then '회의실예약'
+		       when instr(PAGEURL, 'board/list.kedai', 1, 1) &gt; 0 then '게시판'
+		       when instr(PAGEURL, 'community/list.kedai', 1, 1) &gt; 0 then '커뮤니티'
+		       when instr(PAGEURL, 'carShare.kedai', 1, 1) &gt; 0 then '카쉐어'
+		       when instr(PAGEURL, 'bus.kedai', 1, 1) &gt; 0 then '통근버스'
+		       when instr(PAGEURL, 'employee.kedai', 1, 1) &gt; 0 then '사내연락망'
+		       when instr(PAGEURL, 'othercom_list.kedai', 1, 1) &gt; 0 then '거래처정보'
+		       else '기타'
+		       end AS PAGENAME
+		     , name     
+		     , CNT
+		FROM 
+		(
+		    SELECT E.name, A.pageurl, A.cnt 
+		    FROM 
+		    (
+		        select NVL(substr(pageurl, 1, instr(pageurl, '?', 1, 1)-1), pageurl) AS PAGEURL 
+		             , fk_empid
+		             , count(*) AS CNT 
+		        from tbl_empManager_accessTime
+		        group by NVL(substr(pageurl, 1, instr(pageurl, '?', 1, 1)-1), pageurl), fk_empid
+		    ) A JOIN tbl_employees E
+		    ON A.fk_empid = E.empid
+		) V
+		ORDER BY 1, 2
+	</select>
+
+</mapper>

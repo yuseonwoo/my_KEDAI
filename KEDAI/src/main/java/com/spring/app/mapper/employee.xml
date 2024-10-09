@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="employee">
+	
+	<resultMap id="MemberJoinDeptJob"     type="HashMap">
+        <result property="empid" 		  column="empid" 			javaType="String"/>
+        <result property="name" 		  column="name" 			javaType="String"/>
+        <result property="nickname" 	  column="nickname" 		javaType="String"/>
+        <result property="email" 		  column="email" 			javaType="String"/>
+        <result property="mobile" 	 	  column="mobile" 			javaType="String"/>
+        <result property="postcode" 	  column="postcode" 		javaType="String"/>
+        <result property="address" 		  column="address" 		 	javaType="String"/>
+        <result property="detailaddress"  column="detailaddress" 	javaType="String"/>
+        <result property="extraaddress"   column="extraaddress" 	javaType="String"/>
+        <result property="imgfilename" 	  column="imgfilename" 		javaType="String"/>
+        <result property="orgimgfilename" column="orgimgfilename" 	javaType="String"/>
+        <result property="hire_date" 	  column="hire_date" 		javaType="String"/>
+        <result property="salary" 		  column="salary" 			javaType="String"/>
+        <result property="point" 		  column="point" 			javaType="String"/>
+        <result property="fk_dept_code"   column="fk_dept_code" 	javaType="String"/>
+        <result property="fk_job_code" 	  column="fk_job_code" 		javaType="String"/>
+        <result property="dept_tel" 	  column="dept_tel" 		javaType="String"/>
+		<result property="dept_code" 	  column="dept_code" 		javaType="String"/>
+        <result property="dept_name" 	  column="dept_name"		javaType="String"/>
+        <result property="job_code"		  column="job_code"			javaType="String"/>
+        <result property="job_name" 	  column="job_name"			javaType="String"/>
+       	<result property="gender" 	  	  column="gender"			javaType="String"/>
+       	<result property="age" 	  		  column="age"				javaType="String"/>
+    </resultMap>
+	
+	<!-- 직원 리스트 가져오기 -->
+	<select id="employee_list" parameterType="MemberVO" resultType="com.spring.app.domain.MemberVO">
+	SELECT empid, name, nickname, mobile, email
+	     , postcode, address, detailaddress, extraaddress
+	     , imgfilename, orgimgfilename, hire_date, salary, point
+	     , fk_dept_code, dept_code, dept_name, fk_job_code, job_code, job_name, dept_tel
+	FROM 
+	(
+	    select empid, name, nickname
+	         , email, mobile, postcode, address, detailaddress, extraaddress
+	         , imgfilename, orgimgfilename, to_char(hire_date, 'yyyy-mm-dd') AS hire_date, salary, point
+	         , fk_dept_code, dept_code, nvl(D.dept_name, ' ') AS dept_name
+	         , fk_job_code, job_code, nvl(J.job_name, ' ') AS job_name
+	         , dept_tel
+	    from tbl_employees E1 
+	    LEFT JOIN tbl_dept D ON E1.fk_dept_code = D.dept_code
+	    LEFT JOIN tbl_job J ON E1.fk_job_code = J.job_code
+	    WHERE status = 1 
+	    and dept_code is not null
+	)
+	</select>
+	
+	
+	
+	
+	<!-- 직원 리스트 가져오기 -->
+	<!--  
+	<select id="employeeList" parameterType="HashMap" resultMap="MemberJoinDeptJob">
+		SELECT empid, name, nickname, mobile, email
+		     , postcode, address, detailaddress, extraaddress
+		     , imgfilename, orgimgfilename, hire_date, salary, point
+		     , fk_dept_code, dept_code, dept_name, fk_job_code, job_code, job_name, dept_tel
+		FROM 
+		(
+		    select empid, name, nickname
+		         , email, mobile, postcode, address, detailaddress, extraaddress
+		         , imgfilename, orgimgfilename, to_char(hire_date, 'yyyy-mm-dd') AS hire_date, salary, point
+		         , fk_dept_code, dept_code, nvl(D.dept_name, ' ') AS dept_name
+		         , fk_job_code, job_code, nvl(J.job_name, ' ') AS job_name
+		         , dept_tel
+		         , rownum row_num
+		    from tbl_employees E1 
+		    LEFT JOIN tbl_dept D ON E1.fk_dept_code = D.dept_code
+		    LEFT JOIN tbl_job J ON E1.fk_job_code = J.job_code
+		    WHERE rownum &lt;= ((#{page} * #{size}))
+			and status = 1 
+			and dept_code is not null
+	    <choose>
+			<when test="searchType == 'department'">
+			AND dept_name like '%'||#{searchWord}||'%'
+			</when>
+			<when test="searchType == 'position'">
+			AND job_name like '%'||#{searchWord}||'%'
+			</when>
+			<when test="searchType == 'name'">
+			AND name like '%'||#{searchWord}||'%'
+			</when>
+			<when test="searchType == 'personal-tel'">
+			and mobile = #{searchWord}
+			</when>
+		</choose>
+		    order by dept_name asc, job_code asc
+		) E
+		WHERE row_num &gt;= (((#{page}-1) * #{size}) + 1)
+	</select>
+	-->
+
+
+
+ 	<!-- 총직원명수 가져오기 pageable 아님 -->
+ 	<select id="getTotalCount" parameterType="HashMap" resultType="int">
+		    select count(*)
+		    from tbl_employees E1
+		    LEFT JOIN tbl_dept D ON E1.fk_dept_code = D.dept_code
+			LEFT JOIN tbl_job J ON E1.fk_job_code = J.job_code
+			WHERE status = 1 
+			and dept_code is not null
+	    <choose>
+			<when test='searchType == "dept_name" and searchWord != ""'>
+			AND lower(dept_name) like '%'||lower(#{searchWord})||'%'
+			</when>
+			<when test='searchType == "job_name" and searchWord != ""'>
+			AND lower(job_name) like '%'||lower(#{searchWord})||'%'
+			</when>
+			<when test='searchType == "name" and searchWord != ""'>
+			AND lower(name) like '%'||lower(#{searchWord})||'%'
+			</when>
+			<when test='searchType == "nickname" and searchWord != ""'>
+			AND lower(nickname) like '%'||lower(#{searchWord})||'%'
+			</when>
+			<when test='searchType == "mobile" and searchWord != ""'>
+			AND lower(mobile) like '%'||lower(#{searchWord})||'%'
+			</when>
+		</choose>
+	</select> 
+	
+	<!-- // 직원 목록 가져오기(페이징처리를 했으며, 검색어가 있는 것 또는 검색어가 없는 것 모두 포함한 것) -->
+	<!--  <select id="employeeListSearch_withPaging" parameterType="HashMap" resultType="String" resultMap="MemberJoinDeptJob">
+		SELECT empid, name, nickname, mobile, email
+		     , postcode, address, detailaddress, extraaddress
+		     , imgfilename, orgimgfilename, hire_date, salary, point
+		     , fk_dept_code, dept_code, dept_name, fk_job_code, job_code, job_name, dept_tel
+		     , rownum as rno
+		FROM 
+		(
+		    select empid, name, nickname
+		         , email, mobile, postcode, address, detailaddress, extraaddress
+		         , imgfilename, orgimgfilename, to_char(hire_date, 'yyyy-mm-dd') AS hire_date, salary, point
+		         , fk_dept_code, dept_code, nvl(D.dept_name, ' ') AS dept_name
+		         , fk_job_code, job_code, nvl(J.job_name, ' ') AS job_name
+		         , dept_tel
+		         , rownum as rno
+		    from tbl_employees E1 
+		    LEFT JOIN tbl_dept D ON E1.fk_dept_code = D.dept_code
+		    LEFT JOIN tbl_job J ON E1.fk_job_code = J.job_code
+		    WHERE rownum &lt;= ((#{page} * #{size}))
+			and status = 1 
+			and dept_code is not null
+		<choose>
+			<when test='searchType == "dept_name" and searchWord != ""'>
+			AND lower(dept_name)like '%'||lower(#{searchWord})||'%'
+			</when>
+			<when test='searchType == "job_name" and searchWord != ""'>
+			AND lower(job_name)like '%'||lower(#{searchWord})||'%'
+			</when>
+			<when test='searchType == "name" and searchWord != ""'>
+			AND lower(name)like '%'||lower(#{searchWord})||'%'
+			</when>
+			<when test='searchType == "mobile" and searchWord != ""'>
+			and lower(mobile) like '%'||lower(#{searchWord})||'%'
+			</when>
+		</choose>
+		    order by dept_name asc, job_code asc
+		) E
+		WHERE RNO between #{startRno} and #{endRno}
+	</select>
+	-->
+	<select id="employeeListSearch_withPaging" parameterType="HashMap" resultType="MemberVO">
+	SELECT empid, name, nickname, mobile, email
+		     , postcode, address, detailaddress, extraaddress
+		     , imgfilename, orgimgfilename, hire_date, salary, point
+		     , fk_dept_code, dept_code, dept_name, fk_job_code, job_code, job_name, dept_tel
+		     , rownum as rno
+		FROM 
+		(
+    select empid, name, nickname
+         , email, mobile, postcode, address, detailaddress, extraaddress
+         , imgfilename, orgimgfilename, to_char(hire_date, 'yyyy-mm-dd') AS hire_date, salary, point
+         , fk_dept_code, dept_code, nvl(D.dept_name, ' ') AS dept_name
+         , fk_job_code, job_code, nvl(J.job_name, ' ') AS job_name
+         , dept_tel
+         , rownum as rno
+    from tbl_employees E1 
+    LEFT JOIN tbl_dept D ON E1.fk_dept_code = D.dept_code
+    LEFT JOIN tbl_job J ON E1.fk_job_code = J.job_code
+    WHERE status = 1 
+    and dept_code is not null
+  	<choose>
+		<when test='searchType == "dept_name" and searchWord != ""'>
+		AND lower(dept_name)like '%'||lower(#{searchWord})||'%'
+		</when>
+		<when test='searchType == "job_name" and searchWord != ""'>
+		AND lower(job_name)like '%'||lower(#{searchWord})||'%'
+		</when>
+		<when test='searchType == "name" and searchWord != ""'>
+		AND lower(name)like '%'||lower(#{searchWord})||'%'
+		</when>
+		<when test='searchType == "nickname" and searchWord != ""'>
+		AND lower(nickname)like '%'||lower(#{searchWord})||'%'
+		</when>
+		<when test='searchType == "mobile" and searchWord != ""'>
+		and lower(mobile) like '%'||lower(#{searchWord})||'%'
+		</when>
+	</choose>
+	order by dept_name asc, job_code asc
+	) E
+	WHERE RNO between #{startRno} and #{endRno}
+	</select>
+    
+	
+	
+	
+
+	<!-- 클릭한 사원정보 가져오기 -->
+	<select id="empDetailList" resultMap="MemberJoinDeptJob">
+		SELECT empid, name, nickname, mobile, email, gender , age
+		     , postcode, address, detailaddress, extraaddress
+		     , imgfilename, orgimgfilename, hire_date, salary, point
+		     , fk_dept_code, dept_code, dept_name, fk_job_code, job_code, job_name, dept_tel
+		FROM 
+		(
+		    select empid, name, nickname
+		         , email, mobile, postcode, address, detailaddress, extraaddress
+		         , func_gender(jubun) AS gender
+         		 , func_age(jubun) AS age
+		         , imgfilename, orgimgfilename, to_char(hire_date, 'yyyy-mm-dd') AS hire_date, salary, point
+		         , fk_dept_code, dept_code, nvl(D.dept_name, ' ') AS dept_name
+		         , fk_job_code, job_code, nvl(J.job_name, ' ') AS job_name
+		         , dept_tel
+		    from tbl_employees E1 
+		    LEFT JOIN tbl_dept D ON E1.fk_dept_code = D.dept_code
+		    LEFT JOIN tbl_job J ON E1.fk_job_code = J.job_code
+		    order by dept_name asc, job_code asc
+		) E
+        where empid = #{empid}
+	</select>
+		
+		
+	<!-- // 검색어 입력 시 자동글 완성하기  -->
+	<select id="wordSearchShowJSON" parameterType="HashMap" resultType="String">
+		<choose>
+			<when test='searchType == "dept_name"'>
+				select distinct dept_name
+			</when>
+			<when test='searchType == "job_name"'>
+				select distinct job_name
+			</when>
+			<when test='searchType == "name"'>
+				select distinct name
+			</when>
+			<when test='searchType == "nickname"'>
+				select distinct nickname
+			</when>
+			<when test='searchType == "mobile"'>
+				select distinct mobile
+			</when>
+		</choose>		
+			from tbl_employees E1
+		    LEFT JOIN tbl_dept D ON E1.fk_dept_code = D.dept_code
+			LEFT JOIN tbl_job J ON E1.fk_job_code = J.job_code
+		<choose>
+			<when test='searchType == "dept_name" and searchWord != ""'>
+				where lower(dept_name) like '%' ||lower(#{searchWord})|| '%'
+			</when>
+			<when test='searchType == "job_name" and searchWord != ""'>
+				where lower(job_name) like '%' ||lower(#{searchWord})|| '%'
+			</when>
+			<when test='searchType == "name" and searchWord != ""'>
+				where lower(name) like '%' ||lower(#{searchWord})|| '%'
+			</when>
+			<when test='searchType == "nickname" and searchWord != ""'>
+				where lower(nickname) like '%' ||lower(#{searchWord})|| '%'
+			</when>
+			<when test='searchType == "mobile" and searchWord != ""'>
+				where lower(mobile) like '%' ||lower(#{searchWord})|| '%'
+			</when>
+		</choose>
+	</select>	
+		
+		
+		
+		
+		
+		
+	
+</mapper>

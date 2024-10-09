@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="company">
+	
+	<!-- 사업자등록번호 중복확인  -->
+	<select id="partnerNoDuplicateCheck" resultType="String">
+		select partner_no
+		from tbl_business_part
+		where partner_no = #{partner_no}
+	</select>
+	
+	<!-- 거래처 정보 상세정보 클릭했을때 어떤거 눌렀는지 알아오기 -->
+	<select id="partnerPopupClick" resultType="PartnerVO">
+		select partner_no, partner_type, partner_name, partner_url, partner_postcode, partner_address, partner_detailaddress, partner_extraaddress,
+		       originalfilename, part_emp_name, part_emp_tel, part_emp_email, part_emp_dept, part_emp_rank
+		from tbl_business_part
+        where partner_no = #{partner_no}
+	</select>
+	
+	
+	<!-- 거래처정보 등록하기 -->
+	<insert id="othercomRegister_submit" parameterType="PartnerVO">
+		insert into tbl_business_part(
+			partner_no, partner_type, partner_name, partner_url, partner_postcode, partner_address,
+			partner_detailaddress, partner_extraaddress, imgfilename, originalfilename, part_emp_name, part_emp_tel, part_emp_email, part_emp_dept, part_emp_rank)
+		<choose>
+			<when test="part_emp_tel == null and part_emp_dept == null"><!-- 값이 널인 컬럼을 아예 지우고 값도 날리니까 가능해짐  -->
+				values(
+					#{partner_no}, #{partner_type}, #{partner_name}, #{partner_url}, #{partner_postcode}, #{partner_address},
+					#{partner_detailaddress}, #{partner_extraaddress}, #{imgfilename}, #{originalfilename}, #{part_emp_name}, null, #{part_emp_email}, null ,#{part_emp_rank})
+			</when>
+			<when test="part_emp_tel != null and part_emp_dept == null">
+				values(
+					#{partner_no}, #{partner_type}, #{partner_name}, #{partner_url}, #{partner_postcode}, #{partner_address},
+					#{partner_detailaddress}, #{partner_extraaddress}, #{imgfilename}, #{originalfilename}, #{part_emp_name}, #{part_emp_tel}, #{part_emp_email}, null,#{part_emp_rank})
+			</when>
+			<when test="part_emp_tel == null and part_emp_dept != null">
+				values(
+					#{partner_no}, #{partner_type}, #{partner_name}, #{partner_url}, #{partner_postcode}, #{partner_address},
+					#{partner_detailaddress}, #{partner_extraaddress}, #{imgfilename}, #{originalfilename}, #{part_emp_name}, null, #{part_emp_email}, #{part_emp_dept},#{part_emp_rank})
+			</when>
+			<when test="part_emp_tel != null and part_emp_dept != null">
+				values(
+					#{partner_no}, #{partner_type}, #{partner_name}, #{partner_url}, #{partner_postcode}, #{partner_address},
+					#{partner_detailaddress}, #{partner_extraaddress}, #{imgfilename}, #{originalfilename}, #{part_emp_name}, #{part_emp_tel}, #{part_emp_email}, #{part_emp_dept},#{part_emp_rank})
+			</when>
+		</choose>
+	</insert>
+	
+	<!-- 거래처정보 수정하기 -->
+	<update id="othercomModify_submit" parameterType="PartnerVO">
+		update tbl_business_part
+		set
+			partner_type = #{partner_type}, 
+			partner_name = #{partner_name}, 
+			partner_url = #{partner_url}, 
+			partner_postcode = #{partner_postcode}, 
+			partner_address = #{partner_address},
+			partner_detailaddress = #{partner_detailaddress}, 
+			partner_extraaddress = #{partner_extraaddress}, 
+		<choose>
+			<when test="imgfilename != null"><!-- 값이 널인 컬럼을 아예 지우고 값도 날리니까 가능해짐  -->
+			imgfilename = #{imgfilename}, 
+			originalfilename = #{originalfilename}, 
+			</when>
+		</choose>
+			part_emp_name = #{part_emp_name}, 
+			part_emp_tel = #{part_emp_tel}, 
+			part_emp_email = #{part_emp_email}, 
+			part_emp_dept = #{part_emp_dept}, 
+			part_emp_rank = #{part_emp_rank}
+		where partner_no = #{partner_no}
+	</update>
+	
+	<!-- 거래처정보 가져오기 -->
+	<select id="otherCom_list_select" resultType="PartnerVO">
+		select partner_no, partner_type, partner_name, partner_url, partner_postcode, partner_address, partner_detailaddress, partner_extraaddress,
+		       imgfilename, part_emp_name, part_emp_tel, part_emp_email, part_emp_dept, part_emp_rank
+		from tbl_business_part
+	</select>
+	
+	<!-- 거래처 정보 상세정보 클릭했을때 어떤거 눌렀는지 알아오기 -->
+	<select id="otherCom_get_select" parameterType="string" resultType="PartnerVO">
+		select partner_no, partner_type, partner_name, partner_url, partner_postcode, partner_address, partner_detailaddress, partner_extraaddress
+		       ,imgfilename, originalfilename, part_emp_name, part_emp_tel, part_emp_email, part_emp_dept, part_emp_rank
+		from tbl_business_part
+        where partner_no = #{partner_no}
+	</select>
+	
+	<!-- 거래처 삭제하기 (첨부파일 삭재는 아직 못함.)--> 
+	<delete id="delPartnerNo" parameterType="String">
+		delete from tbl_business_part
+		where partner_no = #{partner_no}
+	</delete>
+
+	<!-- 총 페이지 건수 (TotalCount) 구하기 -->
+	<select id="getTotalCount" parameterType="HashMap" resultType="int">
+		select count(*)
+		from tbl_business_part
+		<choose>
+			<when test='searchType == "partner_name" and searchWord != ""'>
+			where lower(partner_name) like '%' ||lower(#{searchWord})|| '%'
+			</when>
+			<when test='searchType == "partner_type" and searchWord != ""'>
+			where lower(partner_type) like '%' ||lower(#{searchWord})|| '%'
+			</when>
+			<when test='searchType == "part_emp_name" and searchWord != ""'>
+			where lower(part_emp_name) like '%' ||lower(#{searchWord})|| '%'
+			</when>
+			<otherwise></otherwise>
+		</choose>
+	</select>
+	
+	
+	
+	<!-- // 글목록 가져오기(페이징처리를 했으며, 검색어가 있는 것 또는 검색어가 없는 것 모두 포함한 것) -->
+	<select id="PartnerListSearch_withPaging" parameterType="HashMap" resultType="PartnerVO">
+		SELECT partner_no, partner_name, partner_type, partner_url, part_emp_name, part_emp_dept, part_emp_rank, part_emp_tel
+		FROM
+		(
+		  SELECT rownum AS rno ,partner_no
+		       , partner_name, partner_type, partner_url, part_emp_name, part_emp_dept, part_emp_rank, part_emp_tel
+		  FROM 
+		  (
+		      select partner_no, partner_name, partner_type, partner_url, part_emp_name, part_emp_dept, part_emp_rank, part_emp_tel
+		      from tbl_business_part 
+		      
+		      <choose>
+				    <!-- 검색조건과 검색어가 존재하는 경우 -->
+				    <when test='searchType == "partner_name" and searchWord != ""'>
+				        where lower(partner_name) like '%'||lower(#{searchWord})||'%'
+				    </when>
+				    <when test='searchType == "partner_type" and searchWord != ""'>
+				        where lower(partner_type) like '%'||lower(#{searchWord})||'%'
+				    </when>
+				    <when test='searchType == "part_emp_name" and searchWord != ""'>
+				       where lower(part_emp_name) like '%'||lower(#{searchWord})||'%'
+				    </when>
+				    <otherwise></otherwise>
+				</choose>
+		      order by partner_name asc
+		  ) V
+		) T
+		WHERE RNO between #{startRno} and #{endRno}
+	</select>
+	<!-- 
+		order siblings by 각 계층별로 정렬을 하는 것이다. 
+		계층구조는 그대로 유지하면서 동일 부모를 가진 자식행들 끼리의 정렬 기준을 주는 것이 order siblings by 이다.
+	-->
+	
+	<!-- // 검색어 입력 시 자동글 완성하기  -->
+	<select id="wordSearchShowJSON" parameterType="HashMap" resultType="String">
+		<choose>
+			<when test='searchType == "partner_name"'>
+				select partner_name
+			</when>
+			<when test='searchType == "partner_type"'>
+				select partner_type
+			</when>
+			<when test='searchType == "part_emp_name"'>
+				select part_emp_name
+			</when>
+		</choose>
+		from tbl_business_part
+		where 1 = 1
+		<choose>
+			<when test='searchType == "partner_name" and searchWord != ""'>
+				and lower(partner_name) like '%' ||lower(#{searchWord})|| '%'
+			</when>
+			<when test='searchType == "partner_type" and searchWord != ""'>
+				and lower(partner_type) like '%' ||lower(#{searchWord})|| '%'
+			</when>
+			<when test='searchType == "part_emp_name" and searchWord != ""'>
+				and lower(part_emp_name) like '%' ||lower(#{searchWord})|| '%'
+			</when>
+		</choose>
+	</select>
+
+	
+	
+</mapper>

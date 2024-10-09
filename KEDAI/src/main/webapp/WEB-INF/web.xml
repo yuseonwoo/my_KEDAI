@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app version="4.0" xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-app_4_0.xsd">
+
+	<!-- The definition of the Root Spring Container shared by all Servlets and Filters -->
+	<context-param>
+		<param-name>contextConfigLocation</param-name>
+		<!-- ==== #224. (웹채팅관련6, 웹채팅관련13) ==== -->
+		<param-value>
+			/WEB-INF/spring/root-context.xml,
+			/WEB-INF/spring/mongo-connection.xml
+		</param-value>
+	</context-param>
+	
+	<!-- Creates the Spring Container shared by all Servlets and Filters -->
+	<listener>
+		<listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
+	</listener>
+
+	
+	<!-- 
+		===== #259. 스프링보안06 =====
+        spring security 세션 리스너 등록(하나의 사용자ID로 서로다른 브라우저를 사용하여 동시에 로그인을 못하도록 막아주는 리스너) 
+    
+    <listener>
+        <listener-class>org.springframework.security.web.session.HttpSessionEventPublisher</listener-class>
+    </listener>
+    -->
+    <!-- 
+    	===== #260. 스프링보안07 =====
+        spring security 필터만들기
+        (이것은 웹으로 들어오는 요청에 대해 spring security가 관여하도록 만들어주는 프록시 필터이다. 
+                    이필터를 통해 인증 및 권한(역할)을 체크해준다. Spring Security는 필터로 동작하는 것이다!!!) 
+   	
+   	<filter> 
+		<filter-name>springSecurityFilterChain</filter-name> 
+      	<filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class> 
+   	</filter> 
+   	<filter-mapping> 
+      	<filter-name>springSecurityFilterChain</filter-name> 
+      	<url-pattern>/*</url-pattern> 
+   	</filter-mapping>
+	--> 
+	<!-- Processes application requests -->
+	<servlet>
+		<servlet-name>appServlet</servlet-name>
+		<servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+		<init-param>
+			<param-name>contextConfigLocation</param-name>
+			<param-value>
+				/WEB-INF/spring/appServlet/servlet-context.xml,
+				/WEB-INF/spring/config/websocketContext.xml
+			</param-value>
+		</init-param>
+		<load-on-startup>1</load-on-startup>
+	</servlet>
+		
+	<servlet-mapping>
+		<servlet-name>appServlet</servlet-name>
+		<!-- ==== #13. URL 패턴이 끝나는 글자가 .action 인 것으로 요청을 했을때 appServlet 서블릿이 받아서 처리를 해준다. ==== --> 
+		<url-pattern>*.kedai</url-pattern>
+	</servlet-mapping>
+	
+	<!-- ==== #14. POST 방식으로 요청시 데이터 인코딩처리(UTF-8)를 위한 필터추가 ==== -->
+	<!-- 
+		Tomcat 9 까지는 post 방식으로 넘어온 데이터 중 영어는 글자가 안깨지지만,
+		한글은 글자모양이 깨져나온다. get 방식과 다르게 post 방식은 form 태그로 넘어온 한글값이 깨지기 때문에 그것을 방지하는 것이다. 
+	-->
+   	<filter>
+    	<filter-name>encodingFilter</filter-name>
+      	<filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
+      	<init-param>
+        	<param-name>encoding</param-name>
+         	<param-value>UTF-8</param-value>      
+      	</init-param>
+   	</filter> 
+   
+   	<filter-mapping>
+    	<filter-name>encodingFilter</filter-name>
+      	<url-pattern>*</url-pattern>
+   	</filter-mapping>
+   	
+   	<!--  ==== #14. 시작 웹페이지 등록하기 ==== -->
+   	<welcome-file-list>
+		<welcome-file>index.kedai</welcome-file>
+    </welcome-file-list>
+</web-app>

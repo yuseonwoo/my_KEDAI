@@ -1,0 +1,937 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="reservation">
+	<resultMap id="stationList" type="BusVO">
+	    <result property="bus_no" column="bus_no" javaType="String"/>
+	    <result property="pf_station_id" column="pf_station_id"	javaType="String"/>
+	    <result property="pk_station_id" column="pk_station_id"	javaType="String"/>
+	    <result property="first_time" column="first_time"	javaType="String"/>
+	    <result property="last_time" column="last_time"	javaType="String"/>
+	    <result property="station_name" column="station_name"	javaType="String"/>
+	    <result property="time_gap" column="time_gap"	javaType="int"/>
+	</resultMap>
+	<select id="getStationList" parameterType="String" resultMap="stationList">		
+		select bus_no, v.pf_station_id, h.pk_station_id, first_time, last_time, h.station_name, time_gap, lat, lng, way, zindex
+		from 
+		(
+		select bus_no, pf_station_id, first_time, last_time, time_gap
+		from tbl_bus
+		where bus_no = #{bus_no}
+		order by first_time asc
+		)v cross join
+		(
+		select pk_station_id, station_name, lat, lng, way, zindex
+		from tbl_station
+		)h
+		where h.pk_station_id = v.pf_station_id
+		order by v.first_time asc
+	</select>
+	
+	<resultMap id="stationTime" type="BusVO">
+       <result property="bus_no"                   column="bus_no"                   javaType="String"/>
+       <result property="pf_station_id"            column="pf_station_id"            javaType="String"/>
+       <result property="station_name"             column="station_name"             javaType="String"/>
+       <result property="way"                      column="way"                      javaType="String"/>
+       <result property="zindex"                   column="zindex"             		 javaType="int"/>
+       <result property="minutes_until_next_bus"   column="minutes_until_next_bus"   javaType="int"/>
+   </resultMap>
+   <select id="getStationTimeList" parameterType="HashMap" resultMap="stationTime">      
+     WITH current_times
+      AS (
+            select bus_no, v.pf_station_id, h.pk_station_id, first_time, last_time, h.station_name, time_gap, lat, lng, way, current_time, zindex
+              from 
+              (
+                  select bus_no, pf_station_id, TO_DATE(first_time, 'HH24:MI') AS first_time
+                       , TO_DATE(last_time, 'HH24:MI') AS last_time, time_gap
+                       , TO_DATE(TO_CHAR(SYSDATE, 'HH24:MI'), 'HH24:MI') AS current_time
+                  from tbl_bus
+                  where bus_no = #{bus_no}
+                  order by first_time asc
+              )v cross join
+              (
+                  select pk_station_id, station_name, lat, lng, way, zindex
+                  from tbl_station
+                  where pk_station_id=#{pf_station_id}
+              )h
+              where h.pk_station_id = v.pf_station_id
+              order by v.first_time asc
+          )
+      SELECT
+          bus_no, pf_station_id, station_name, way, lat, lng, zindex,
+          CASE
+          <![CDATA[
+              WHEN current_time &lt; first_time THEN
+              ]]>
+                  ROUND((first_time - current_time) * 24 * 60)
+            <![CDATA[
+              WHEN current_time &gt; last_time THEN
+               ]]>
+                  NULL
+              ELSE
+                  ROUND(
+                      (time_gap - MOD(
+                          (current_time - first_time) * 24 * 60,
+                          time_gap
+                      ))
+                  )
+          END AS minutes_until_next_bus
+      FROM
+          current_times
+   </select>
+	
+	<select id="getmyCar" resultType="CarVO" parameterType="String">
+		select car_seq, fk_empid, car_num, car_type, max_num, insurance, drive_year, license, car_imgfilename, car_orgimgfilename
+		from tbl_car
+		where fk_empid = #{fk_empid}
+	</select>	
+	
+	<select id="getmyCar2" resultType="CarVO" parameterType="String">
+		select car_seq, fk_empid, car_num, car_type, max_num, insurance, drive_year, license, car_imgfilename, car_orgimgfilename
+		from tbl_car
+		where fk_empid = #{fk_empid}
+	</select>	
+
+	<insert id="addMyCar" parameterType="HashMap">
+		insert into tbl_car(car_seq, fk_empid, car_num, car_type, max_num, insurance, drive_year, license, car_imgfilename, car_orgimgfilename)
+		values(car_seq.nextval, #{fk_empid}, #{car_num}, #{car_type}, #{max_num}, #{insurance}, #{drive_year}, #{license}, #{car_imgfilename}, #{car_orgimgfilename})
+	</insert>
+	
+	<update id="editMycar" parameterType="HashMap">
+		update tbl_car set car_num = #{car_num}
+		<choose>
+						 <when test='car_orgimgfilename != ""'>
+						 , car_orgimgfilename = #{car_orgimgfilename}
+						 </when>
+						 <when test='car_orgimgfilename == ""'></when>
+						 <when test="'car_imgfilenname == null"></when>
+						 <when test="car_imgfilename != null">
+		                 , car_imgfilename = #{car_imgfilename}
+		                 </when>
+	    </choose>
+		                 , car_type = #{car_type}
+		                 , max_num = #{max_num}
+		                 , drive_year = #{drive_year}
+		where fk_empid = #{fk_empid}
+	</update>
+	
+	<insert id="addcarRegister" parameterType="HashMap">
+		insert into tbl_day_share(res_num, fk_car_seq, start_date, last_date, dp_name, dp_add, dp_lat, dp_lng, start_time, ds_name, ds_add, ds_lat, ds_lng, want_max, end_status, cancel_status)
+		values(res_num.nextval, #{car_seq}, #{start}, #{last}, #{departure_name}, #{departure_address}, #{dp_lat}, #{dp_lng}, #{startTime}, #{arrive_name}, #{arrive_address}, #{ds_lat}, #{ds_lng}, #{fk_cnum}, default, default)
+	
+	</insert>
+	
+	<resultMap id="carShareList" type="HashMap">
+		<result property="res_num" column="res_num" javaType="int"/>
+	    <result property="start_date" column="start_date" javaType="String"/>
+	    <result property="last_date" column="last_date"	javaType="String"/>
+	    <result property="dp_name" column="dp_name"	javaType="String"/>
+	    <result property="ds_name" column="ds_name"	javaType="String"/>
+	    <result property="want_max" column="want_max"	javaType="int"/>
+	    <result property="end_status" column="end_status"	javaType="int"/>
+	    <result property="cancel_status" column="cancel_status"	javaType="int"/>
+	    <result property="start_time" column="start_time"	javaType="String"/>
+	    <result property="nickname" column="nickname"	javaType="String"/>
+	</resultMap>
+	<select id="getcarShareList" resultMap="carShareList">
+		select res_num, start_date, last_date, dp_name, ds_name, want_max, end_status, cancel_status, start_time, nickname
+		from 
+		(
+		select res_num, start_date, last_date, dp_name, ds_name, want_max, end_status, cancel_status, start_time, fk_car_seq
+		from tbl_day_share
+		where end_status = 1 and cancel_status = 1
+		)a cross join
+		(
+		    select car_seq, fk_empid, car_num, car_type, max_num, nickname
+		    from 
+		    (
+		        select *
+		        from tbl_car
+		    ) v cross join
+		    (
+		        select *
+		        from tbl_employees
+		    ) h
+		    where fk_empid = h.empid
+		)b
+		where fk_car_seq = b.car_seq
+	</select>
+	
+	<resultMap id="dayShareDetail" type="Day_shareVO">
+		<result property="res_num" column="res_num" javaType="int"/>
+	    <result property="fk_car_seq" column="fk_car_seq"	javaType="int"/>
+	    <result property="start_date" column="start_date" javaType="String"/>
+	    <result property="last_date" column="last_date"	javaType="String"/>
+	    <result property="dp_name" column="dp_name"	javaType="String"/>
+	    <result property="dp_add" column="dp_add"	javaType="String"/>
+	    <result property="dp_lat" column="dp_lat"	javaType="double"/>
+	    <result property="dp_lng" column="dp_lng"	javaType="double"/>
+	    <result property="ds_name" column="ds_name"	javaType="String"/>
+	    <result property="ds_add" column="ds_add"	javaType="String"/>
+	    <result property="ds_lat" column="ds_lat"	javaType="double"/>
+	    <result property="ds_lng" column="ds_lng"	javaType="double"/>
+	    <result property="want_max" column="want_max"	javaType="int"/>
+	    <result property="end_status" column="end_status"	javaType="int"/>
+	    <result property="cancel_status" column="cancel_status"	javaType="int"/>
+	    <result property="start_time" column="start_time"	javaType="String"/>
+	</resultMap>
+	<select id="getday_shareInfo" resultMap="dayShareDetail">
+		select res_num, fk_car_seq, start_date,last_date,dp_name,dp_add,dp_lat, dp_lng, ds_name, ds_add, ds_lat, ds_lng, want_max, end_status, cancel_status, start_time
+		from tbl_day_share
+		where res_num = #{res_num}
+	</select>
+	
+	
+	<insert id="addcarApply_detail" parameterType="HashMap">
+		insert into tbl_car_share(pf_res_num, pf_empid, share_date, share_may_time, accept_yon, rdp_name, rdp_add, rdp_lat, rdp_lng, rds_name, rds_add, rds_lat, rds_lng)
+		values(#{pf_res_num}, #{pf_empid}, #{share_date}, #{share_may_time}, default, #{rdp_name}, #{rdp_add}, #{rdp_lat}, #{rdp_lng}, #{rds_name}, #{rds_add}, #{rds_lat}, #{rds_lng})
+	
+	</insert>
+	
+	<!-- // === #125.총게시물 건수(totalCount) 구하기 (경우의 수 2가지 1.검색어가 있을때 2.검색어가 없을때) ==// -->
+	<select id="getTotalCount" parameterType="HashMap" resultType="int">
+	<!-- resultType="int" Integer를 써야하지만 int 도 다 된다. -->
+		select count(*)
+		from tbl_day_share
+		where cancel_status = 1
+		<choose>
+			<when test='searchType == "dp_name" and searchWord != ""'>
+				and lower(dp_name) like '%'|| lower(#{searchWord})||'%'
+			</when>		<!-- if -->
+			<when test='searchType == "ds_name" and searchWord != ""'>
+				and lower(ds_name) like '%'|| lower(#{searchWord})||'%'
+			</when>		<!-- else if -->
+			<when test='searchType == "share_date" and start != ""'>
+				and lower(#{start}) between start_date and last_date
+			</when>
+			<otherwise></otherwise>		<!-- else -->
+		</choose>
+	</select>
+	
+	<resultMap id="carShareListPaging" type="Day_shareVO">
+		<result property="res_num" column="res_num" javaType="int"/>
+	    <result property="start_date" column="start_date"	javaType="String"/>
+	    <result property="last_date" column="last_date" javaType="String"/>
+	    <result property="dp_name" column="dp_name"	javaType="String"/>
+	    <result property="ds_name" column="ds_name"	javaType="String"/>
+	    <result property="want_max" column="want_max"	javaType="int"/>
+	    <result property="end_status" column="end_status"	javaType="int"/>
+	    <result property="cancel_status" column="cancel_status"	javaType="int"/>
+	    <result property="start_time" column="start_time"	javaType="String"/>
+	    <result property="nickname" column="nickname"	javaType="String"/>
+	    <result property="readCount" column="readCount"	javaType="int"/>
+	</resultMap>
+	
+	<select id="carShareListSearch_withPaging" parameterType="HashMap" resultMap="carShareListPaging">
+		select res_num, start_date, last_date, dp_name, ds_name, want_max, end_status, cancel_status, start_time, nickname, readCount
+		from
+		(
+		select row_number() over(order by res_num desc) AS rno, res_num, start_date, last_date, dp_name, ds_name, want_max, end_status, cancel_status, start_time, nickname, readCount
+		from 
+		(
+		select res_num, start_date, last_date, dp_name, ds_name, want_max, end_status, cancel_status, start_time, fk_car_seq, readCount
+		from tbl_day_share
+		where end_status = 1 and cancel_status = 1
+				<choose>
+					<when test='searchType == "dp_name" and searchWord != ""'>
+						and lower(dp_name) like '%'|| lower(#{searchWord})||'%'
+					</when>		<!-- if -->
+					<when test='searchType == "ds_name" and searchWord != ""'>
+						and lower(ds_name) like '%'|| lower(#{searchWord})||'%'
+					</when>		<!-- else if -->
+				    <when test='searchType == "share_date" and start != ""'>
+				    <!-- 출발 날짜와 도착 날짜가 해당 날짜 사이에 포함되어 있는 경우로 로직 짜기 -->
+				        AND TO_DATE(#{start}, 'YYYY-MM-DD') BETWEEN start_date AND last_date
+				    </when>
+					<otherwise></otherwise>		<!-- else -->
+				</choose>
+		)a cross join
+		(
+		    select car_seq, fk_empid, car_num, car_type, max_num, nickname
+		    from 
+		    (
+		        select *
+		        from tbl_car
+		    ) v cross join
+		    (
+		        select *
+		        from tbl_employees
+		    ) h
+		    where fk_empid = h.empid
+		)b
+		where fk_car_seq = b.car_seq
+		)C
+	WHERE c.rno between #{startRno} and #{endRno}
+	</select>
+	
+	<!-- // === # 119. 검색어 입력시 자동글 완성하기6 === // -->
+	<select id="searchShow" parameterType="HashMap" resultType="String">
+		<choose>
+		<when test='searchType == "dp_name"'>
+			<!-- searchType은 subject인 경우  글제목을 select해준다.-->
+			select distinct dp_name
+		</when>
+		<when test='searchType == "ds_name"'>
+			<!-- searchType은 subject인 경우  글제목을 select해준다.-->
+			select distinct ds_name
+		</when>
+		<otherwise></otherwise>
+		</choose>
+		from
+		(
+		    select fk_car_seq, dp_name, ds_name, cancel_status
+		    from tbl_day_share
+		) v 
+		cross join
+		(
+		select empid, car_seq, nickname
+		from tbl_car a join tbl_employees b
+		on a.fk_empid = b.empid
+		)h
+		where h.car_seq = v.fk_car_seq and cancel_status = 1
+		<choose>
+			<when test='searchType == "dp_name" and searchWord != ""'>
+				<!-- searchWord가 공백이면 안되고 searchType은 dp_name(출발지인 경우 -->
+				and lower(dp_name) like '%'||lower(#{searchWord})||'%'
+				<!-- 대소문자 구분치 않게 한다. -->
+			</when>
+			<when test='searchType == "ds_name" and searchWord != ""'>
+				<!-- searchWord가 공백이면 안되고 searchType은 dp_name(출발지인 경우 -->
+				and lower(ds_name) like '%'||lower(#{searchWord})||'%'
+				<!-- 대소문자 구분치 않게 한다. -->
+			</when>
+			<otherwise></otherwise>
+		</choose>
+		<!-- 
+           select 문에서 distinct 와 order by 절을 함께 사용할때는 조심해야 한다.
+           order by 절에는 select 문에서 사용된 컬럼만 들어올 수가 있다.
+                           또는 order by 절을 사용하지 않아야 한다.
+                           
+                           ==> order by 절에는 해당 테이블에 있는 컬럼만 처리해주는데 이때 select 문에 distinct가 있는 경우 only 해당 컬럼 (즉, 여기서는 name)만 쓸 수 있다.
+        -->
+		<choose>
+			<!-- 글제목의 경우 sort 해준다  (가장 최근 글부터 보여주도록 해당 구별 컬럼은 seq)==> order by  -->
+			<when test='searchType == "dp_name"'>
+				order by dp_name desc
+			</when>
+			<when test='searchType == "ds_name"'>
+				order by ds_name desc
+			</when>
+			<!-- 글쓴이의 경우 sort 해준다  가나다라 순==> order by  -->
+			<otherwise>
+			</otherwise>
+		</choose>
+		
+	</select>
+	
+	<select id="searchShow_owner" parameterType="HashMap" resultType="String">
+		<choose>
+		<when test='searchType == "dp_name"'>
+			<!-- searchType은 subject인 경우  글제목을 select해준다.-->
+			select distinct dp_name
+		</when>
+		<when test='searchType == "ds_name"'>
+			<!-- searchType은 subject인 경우  글제목을 select해준다.-->
+			select distinct ds_name
+		</when>
+		<otherwise></otherwise>
+		</choose>
+		from tbl_day_share
+		<choose>
+			<when test='searchType == "dp_name" and searchWord != ""'>
+				<!-- searchWord가 공백이면 안되고 searchType은 dp_name(출발지인 경우 -->
+				where lower(dp_name) like '%'||lower(#{searchWord})||'%'
+				<!-- 대소문자 구분치 않게 한다. -->
+			</when>
+			<when test='searchType == "ds_name" and searchWord != ""'>
+				<!-- searchWord가 공백이면 안되고 searchType은 dp_name(출발지인 경우 -->
+				where lower(ds_name) like '%'||lower(#{searchWord})||'%'
+				<!-- 대소문자 구분치 않게 한다. -->
+			</when>
+			<otherwise></otherwise>
+		</choose>
+		<choose>
+			<!-- 글제목의 경우 sort 해준다  (가장 최근 글부터 보여주도록 해당 구별 컬럼은 seq)==> order by  -->
+			<when test='searchType == "dp_name"'>
+				order by dp_name desc
+			</when>
+			<when test='searchType == "ds_name"'>
+				order by ds_name desc
+			</when>
+			<!-- 글쓴이의 경우 sort 해준다  가나다라 순==> order by  -->
+			<otherwise>
+			</otherwise>
+		</choose>
+		
+	</select>
+	
+	<resultMap id="owner_carShareList" type="HashMap">
+		<result property="res_num" column="res_num" javaType="int"/>
+	    <result property="start_date" column="start_date" javaType="String"/>
+	    <result property="last_date" column="last_date"	javaType="String"/>
+	    <result property="dp_name" column="dp_name"	javaType="String"/>
+	    <result property="ds_name" column="ds_name"	javaType="String"/>
+	    <result property="want_max" column="want_max"	javaType="int"/>
+	    <result property="end_status" column="end_status"	javaType="int"/>
+	    <result property="cancel_status" column="cancel_status"	javaType="int"/>
+	    <result property="start_time" column="start_time"	javaType="String"/>
+	    <result property="nickname" column="nickname"	javaType="String"/>
+	</resultMap>
+	<select id="getowner_carShareList" resultMap="owner_carShareList" parameterType="String">
+		select res_num, start_date, last_date, dp_name, ds_name, want_max, end_status, cancel_status, start_time, nickname
+		from 
+		(
+		select res_num, start_date, last_date, dp_name, ds_name, want_max, end_status, cancel_status, start_time, fk_car_seq
+		from tbl_day_share
+		where end_status = 1 and cancel_status = 1
+		)a cross join
+		(
+		    select car_seq, fk_empid, car_num, car_type, max_num, nickname
+		    from 
+		    (
+		        select *
+		        from tbl_car
+		    ) v cross join
+		    (
+		        select *
+		        from tbl_employees
+		        where empid = #{empid}
+		    ) h
+		    where fk_empid = h.empid
+		)b
+		where fk_car_seq = b.car_seq
+	</select>
+	
+	<resultMap id="owner_carShareListPaging" type="Day_shareVO">
+		<result property="res_num" column="res_num" javaType="int"/>
+	    <result property="start_date" column="start_date"	javaType="String"/>
+	    <result property="last_date" column="last_date" javaType="String"/>
+	    <result property="dp_name" column="dp_name"	javaType="String"/>
+	    <result property="ds_name" column="ds_name"	javaType="String"/>
+	    <result property="want_max" column="want_max"	javaType="int"/>
+	    <result property="end_status" column="end_status"	javaType="int"/>
+	    <result property="cancel_status" column="cancel_status"	javaType="int"/>
+	    <result property="start_time" column="start_time"	javaType="String"/>
+	    <result property="nickname" column="nickname"	javaType="String"/>
+	    <result property="readCount" column="readCount"	javaType="int"/>
+	</resultMap>
+	
+	<select id="owner_carShareListSearch_withPaging" parameterType="HashMap" resultMap="owner_carShareListPaging">
+		select res_num, start_date, last_date, dp_name, ds_name, want_max, end_status, cancel_status, start_time, nickname, readCount
+		from
+		(
+		select row_number() over(order by res_num desc) AS rno, res_num, start_date, last_date, dp_name, ds_name, want_max, end_status, cancel_status, start_time, nickname, readCount
+		from 
+		(
+		select res_num, start_date, last_date, dp_name, ds_name, want_max, end_status, cancel_status, start_time, fk_car_seq, readCount
+		from tbl_day_share
+		where end_status = 1 and cancel_status = 1
+				<choose>
+					<when test='searchType == "dp_name" and searchWord != ""'>
+						and lower(dp_name) like '%'|| lower(#{searchWord})||'%'
+					</when>		<!-- if -->
+					<when test='searchType == "ds_name" and searchWord != ""'>
+						and lower(ds_name) like '%'|| lower(#{searchWord})||'%'
+					</when>		<!-- else if -->
+				    <when test='searchType == "share_date" and start != ""'>
+				    <!-- 출발 날짜와 도착 날짜가 해당 날짜 사이에 포함되어 있는 경우로 로직 짜기 -->
+				        AND TO_DATE(#{start}, 'YYYY-MM-DD') BETWEEN start_date AND last_date
+				    </when>
+					<otherwise></otherwise>		<!-- else -->
+				</choose>
+		)a cross join
+		(
+		    select car_seq, fk_empid, car_num, car_type, max_num, nickname
+		    from 
+		    (
+		        select *
+		        from tbl_car
+		    ) v cross join
+		    (
+		        select *
+		        from tbl_employees
+		        where empid=#{empid}
+		    ) h
+		    where fk_empid = h.empid
+		)b
+		where fk_car_seq = b.car_seq
+		)C
+	WHERE c.rno between #{startRno} and #{endRno}
+	</select>
+	
+	<select id="owner_getTotalCount" parameterType="HashMap" resultType="int">
+	<!-- resultType="int" Integer를 써야하지만 int 도 다 된다. -->
+		select count(*)
+		from 
+		(
+		select res_num, start_date, last_date, dp_name, ds_name, want_max, end_status, cancel_status, start_time, fk_car_seq
+		from tbl_day_share
+		where end_status = 1 and cancel_status = 1
+		)a cross join
+		(
+		    select car_seq, fk_empid, car_num, car_type, max_num, nickname
+		    from 
+		    (
+		        select *
+		        from tbl_car
+		    ) v cross join
+		    (
+		        select *
+		        from tbl_employees
+		        where empid = #{empid}
+		    ) h
+		    where fk_empid = h.empid
+		)b
+		where fk_car_seq = b.car_seq
+		<choose>
+			<when test='searchType == "dp_name" and searchWord != ""'>
+				and lower(dp_name) like '%'|| lower(#{searchWord})||'%'
+			</when>		<!-- if -->
+			<when test='searchType == "ds_name" and searchWord != ""'>
+				and lower(ds_name) like '%'|| lower(#{searchWord})||'%'
+			</when>		<!-- else if -->
+			<when test='searchType == "share_date" and start != ""'>
+				and lower(#{start}) between start_date and last_date
+			</when>
+			<otherwise></otherwise>		<!-- else -->
+		</choose>
+	</select>
+	
+	<resultMap id="owner_dateDetail" type="Car_shareVO">
+		<result property="pf_res_num" column="pf_res_num" javaType="int"/>
+	    <result property="pf_empid" column="pf_empid"	javaType="String"/>
+	    <result property="share_date" column="share_date" javaType="String"/>
+	    <result property="share_may_time" column="share_may_time"	javaType="String"/>
+	    <result property="accept_yon" column="accept_yon"	javaType="int"/>
+	    <result property="reason_nonaccept" column="reason_nonaccept"	javaType="String"/>
+	    <result property="rdp_name" column="rdp_name"	javaType="String"/>
+	    <result property="rdp_add" column="rdp_add"	javaType="String"/>
+	    <result property="rdp_lat" column="rdp_lat"	javaType="double"/>
+	    <result property="rdp_lng" column="rdp_lng"	javaType="double"/>
+	    <result property="rds_name" column="rds_name"	javaType="String"/>
+	    <result property="rds_add" column="rds_add"	javaType="String"/>
+	    <result property="rds_lat" column="rds_lat"	javaType="double"/>
+	    <result property="rds_lng" column="rds_lng"	javaType="double"/>
+	    <result property="getin_time" column="getin_time"	javaType="String"/>
+	    <result property="getout_time" column="getout_time"	javaType="String"/>
+	    <result property="use_time" column="use_time"	javaType="String"/>
+	    <result property="nickname" column="nickname" javaType="String"/>
+	    <result property="email" column="email" javaType="String"/>
+	    <result property="settled_amount" column="settled_amount"	javaType="int"/>
+	    <result property="payment_amount" column="payment_amount"	javaType="int"/>
+	    <result property="nonpayment_amount" column="nonpayment_amount"	javaType="int"/>
+	</resultMap>
+	<select id="getowner_dateInfo" parameterType="String" resultMap="owner_dateDetail">
+		select nickname, pf_res_num, pf_empid, share_date, share_may_time, accept_yon, reason_nonaccept, rdp_name, rdp_add, rdp_lat, rdp_lng, rds_name, rds_add, rds_lat, rds_lng, getin_time, getout_time, use_time, settled_amount, payment_amount, nonpayment_amount, email
+		from 
+		(
+		select pf_res_num, pf_empid, share_date, share_may_time, accept_yon, reason_nonaccept, rdp_name, rdp_add, rdp_lat, rdp_lng, rds_name, rds_add, rds_lat, rds_lng, getin_time, getout_time, use_time, settled_amount, payment_amount, nonpayment_amount
+		from tbl_car_share
+	 	where to_char(share_date, 'yyyy-mm-dd') = #{date} 
+   		)a cross join
+		(
+		    select nickname, empid, email
+		    from tbl_employees
+		)b
+		where pf_empid = empid
+	</select>
+	
+	
+	<!-- // === #125.총게시물 건수(totalCount) 구하기 (경우의 수 2가지 1.검색어가 있을때 2.검색어가 없을때) ==// -->
+	<select id="getTotalCount_owner_Status_detail" parameterType="HashMap" resultType="int">
+		select count(*)
+		from tbl_car_share
+		where pf_res_num = #{res_num} and share_date = to_date(#{share_date}, 'yyyy-mm-dd')
+	</select>
+	
+	<resultMap id="owner_carShareListPaging_detail" type="Car_shareVO">
+	    <result property="rno" column="rno" javaType="int"/>
+	    <result property="pf_res_num" column="pf_res_num" javaType="int"/>
+	    <result property="pf_empid" column="pf_empid" javaType="String"/>
+	    <result property="share_date" column="share_date" javaType="String"/>
+	    <result property="share_may_time" column="share_may_time" javaType="String"/>
+	    <result property="accept_yon" column="accept_yon" javaType="int"/>
+	    <result property="reason_nonaccept" column="reason_nonaccept" javaType="String"/>
+	    <result property="rdp_name" column="rdp_name" javaType="String"/>
+	    <result property="rdp_add" column="rdp_add" javaType="String"/>
+	    <result property="rdp_lat" column="rdp_lat" javaType="double"/>
+	    <result property="rdp_lng" column="rdp_lng" javaType="double"/>
+	    <result property="rds_name" column="rds_name" javaType="String"/>
+	    <result property="rds_add" column="rds_add" javaType="String"/>
+	    <result property="rds_lat" column="rds_lat" javaType="double"/>
+	    <result property="rds_lng" column="rds_lng" javaType="double"/>
+	    <result property="getin_time" column="getin_time" javaType="String"/>
+	    <result property="getout_time" column="getout_time" javaType="String"/>
+	    <result property="use_time" column="use_time" javaType="String"/>
+	    <result property="settled_amount" column="settled_amount" javaType="int"/>
+	    <result property="payment_amount" column="payment_amount" javaType="int"/>
+	    <result property="nonpayment_amount" column="nonpayment_amount" javaType="int"/>
+	    <result property="nickname" column="nickname" javaType="String"/>
+	    <result property="email" column="email" javaType="String"/>
+	</resultMap>
+
+	<select id="owner_Status_detail_withPaging" parameterType="HashMap" resultMap="owner_carShareListPaging_detail">
+		SELECT rno, pf_res_num, pf_empid, share_date, share_may_time, accept_yon, reason_nonaccept, rdp_name, rdp_add, rdp_lat, rdp_lng, rds_name, rds_add, rds_lat, rds_lng, getin_time, getout_time, use_time, settled_amount, payment_amount, nonpayment_amount, nickname, email
+		FROM
+		(
+		    SELECT ROW_NUMBER() OVER(ORDER BY pf_res_num DESC) AS rno, pf_res_num, pf_empid, share_date, share_may_time, accept_yon, reason_nonaccept, rdp_name, rdp_add, rdp_lat, rdp_lng, rds_name, rds_add, rds_lat, rds_lng, getin_time, getout_time, use_time, settled_amount, payment_amount, nonpayment_amount, nickname, email
+		    FROM 
+		    (
+		        SELECT pf_res_num, pf_empid, share_date, share_may_time, accept_yon, reason_nonaccept, rdp_name, rdp_add, rdp_lat, rdp_lng, rds_name, rds_add, rds_lat, rds_lng, getin_time, getout_time, use_time, settled_amount, payment_amount, nonpayment_amount
+		        FROM tbl_car_share
+		        where share_date = to_date(#{share_date}, 'yyyy-mm-dd') and pf_res_num = #{res_num}
+		    ) a 
+		    CROSS JOIN
+		    (
+		        select nickname, empid, email
+		        from tbl_employees
+		    )b
+		where pf_empid = empid
+		) C
+		WHERE c.rno between #{startRno} and #{endRno}
+		order by share_may_time asc
+	</select>
+	
+	
+	<update id="updateStatus" parameterType="HashMap">
+		update tbl_car_share set accept_yon = #{accept_yon}, reason_nonaccept = #{deny_reason}
+		where pf_res_num = #{pf_res_num} and pf_empid = #{pf_empid}
+	</update>
+	
+
+	<resultMap id="owner_SettlementList" type="HashMap">
+	    <result property="pf_res_num" column="pf_res_num" javaType="int"/>
+	    <result property="pf_empid" column="pf_empid" javaType="String"/>
+	    <result property="share_date" column="share_date" javaType="String"/>
+	    <result property="share_may_time" column="share_may_time" javaType="String"/>
+	    <result property="accept_yon" column="accept_yon" javaType="int"/>
+	    <result property="reason_nonaccept" column="reason_nonaccept" javaType="String"/>
+	    <result property="rdp_name" column="rdp_name" javaType="String"/>
+	    <result property="rdp_add" column="rdp_add" javaType="String"/>
+	    <result property="rdp_lat" column="rdp_lat" javaType="double"/>
+	    <result property="rdp_lng" column="rdp_lng" javaType="double"/>
+	    <result property="rds_name" column="rds_name" javaType="String"/>
+	    <result property="rds_add" column="rds_add" javaType="String"/>
+	    <result property="rds_lat" column="rds_lat" javaType="double"/>
+	    <result property="rds_lng" column="rds_lng" javaType="double"/>
+	    <result property="getin_time" column="getin_time" javaType="String"/>
+	    <result property="getout_time" column="getout_time" javaType="String"/>
+	    <result property="use_time" column="use_time" javaType="String"/>
+	    <result property="settled_amount" column="settled_amount" javaType="int"/>
+	    <result property="payment_amount" column="payment_amount" javaType="int"/>
+	    <result property="nonpayment_amount" column="nonpayment_amount" javaType="int"/>
+	    <result property="nickname_owner" column="nickname_owner" javaType="String"/>
+	    <result property="nickname_applicant" column="nickname_applicant" javaType="String"/>
+	    <result property="email_applicant" column="email_applicant" javaType="String"/>
+	</resultMap>
+
+	<select id="getowner_SettlementList" resultMap="owner_SettlementList" parameterType="String">
+		SELECT pf_res_num, pf_empid, to_char(share_date, 'yyyy-mm-dd') as share_date, share_may_time, accept_yon, reason_nonaccept, rdp_name, rdp_add, rdp_lat, rdp_lng, rds_name, rds_add, rds_lat, rds_lng, TO_CHAR(getin_time, 'YYYY-MM-DD HH24:MI:SS') AS getin_time, TO_CHAR(getout_time, 'YYYY-MM-DD HH24:MI:SS') AS getout_time, use_time, settled_amount, payment_amount, nonpayment_amount,
+		       d.nickname as nickname_owner, e.nickname as nickname_applicant, e.email as email_applicant
+		FROM 
+		    tbl_car_share a
+		JOIN 
+		    tbl_day_share b ON a.pf_res_num = b.res_num
+		JOIN 
+		    tbl_car c ON b.fk_car_seq = c.car_seq
+		JOIN 
+		    tbl_employees d ON c.fk_empid = d.empid
+		JOIN
+		    tbl_employees e ON a.pf_empid = e.empid
+		WHERE
+		    c.fk_empid = #{empid}  and a.accept_yon = 1
+	</select>
+	
+	
+	<!-- // === #125.총게시물 건수(totalCount) 구하기 (경우의 수 2가지 1.검색어가 있을때 2.검색어가 없을때) ==// -->
+	<select id="getTotalcount_owner_SettlementList" parameterType="HashMap" resultType="int">
+		SELECT count(*)
+		FROM 
+		    tbl_car_share a
+		JOIN 
+		    tbl_day_share b ON a.pf_res_num = b.res_num
+		JOIN 
+		    tbl_car c ON b.fk_car_seq = c.car_seq
+		JOIN 
+		    tbl_employees d ON c.fk_empid = d.empid
+		JOIN
+		    tbl_employees e ON a.pf_empid = e.empid
+		WHERE
+		    c.fk_empid = #{empid} and a.accept_yon = 1
+	</select>
+	
+	
+	<resultMap id="owner_SettlementList_withPaging_rm" type="Car_shareVO">
+	    <result property="rno" column="rno" javaType="int"/>
+	    <result property="pf_res_num" column="pf_res_num" javaType="int"/>
+	    <result property="pf_empid" column="pf_empid" javaType="String"/>
+	    <result property="share_date" column="share_date" javaType="String"/>
+	    <result property="share_may_time" column="share_may_time" javaType="String"/>
+	    <result property="accept_yon" column="accept_yon" javaType="int"/>
+	    <result property="reason_nonaccept" column="reason_nonaccept" javaType="String"/>
+	    <result property="rdp_name" column="rdp_name" javaType="String"/>
+	    <result property="rdp_add" column="rdp_add" javaType="String"/>
+	    <result property="rdp_lat" column="rdp_lat" javaType="double"/>
+	    <result property="rdp_lng" column="rdp_lng" javaType="double"/>
+	    <result property="rds_name" column="rds_name" javaType="String"/>
+	    <result property="rds_add" column="rds_add" javaType="String"/>
+	    <result property="rds_lat" column="rds_lat" javaType="double"/>
+	    <result property="rds_lng" column="rds_lng" javaType="double"/>
+	    <result property="getin_time" column="getin_time" javaType="String"/>
+	    <result property="getout_time" column="getout_time" javaType="String"/>
+	    <result property="use_time" column="use_time" javaType="String"/>
+	    <result property="settled_amount" column="settled_amount" javaType="int"/>
+	    <result property="payment_amount" column="payment_amount" javaType="int"/>
+	    <result property="nonpayment_amount" column="nonpayment_amount" javaType="int"/>
+	    <result property="nickname_owner" column="nickname_owner" javaType="String"/>
+	    <result property="nickname_applicant" column="nickname_applicant" javaType="String"/>
+	    <result property="email_applicant" column="email_applicant" javaType="String"/>
+	</resultMap>
+	<select id="owner_SettlementList_withPaging" parameterType="HashMap" resultMap="owner_SettlementList_withPaging_rm">
+        SELECT rno, pf_res_num, pf_empid, share_date, share_may_time, accept_yon, reason_nonaccept, rdp_name, rdp_add, rdp_lat, rdp_lng, rds_name, rds_add, rds_lat, rds_lng, getin_time, getout_time, use_time, settled_amount, payment_amount, nonpayment_amount, nickname_owner, nickname_applicant ,email_applicant
+		FROM
+		(    
+            SELECT ROW_NUMBER() OVER(ORDER BY pf_res_num DESC) AS rno, pf_res_num, pf_empid, to_char(share_date, 'yyyy-mm-dd') as share_date, share_may_time, accept_yon, reason_nonaccept, rdp_name, rdp_add, rdp_lat, rdp_lng, rds_name, rds_add, rds_lat, rds_lng, TO_CHAR(getin_time, 'YYYY-MM-DD HH24:MI:SS') AS getin_time, TO_CHAR(getout_time, 'YYYY-MM-DD HH24:MI:SS') AS getout_time, use_time, settled_amount, payment_amount, nonpayment_amount,
+                   d.nickname as nickname_owner, e.nickname as nickname_applicant, e.email as email_applicant
+            FROM 
+                tbl_car_share a
+            JOIN 
+                tbl_day_share b ON a.pf_res_num = b.res_num
+            JOIN 
+                tbl_car c ON b.fk_car_seq = c.car_seq
+            JOIN 
+                tbl_employees d ON c.fk_empid = d.empid
+            JOIN
+                tbl_employees e ON a.pf_empid = e.empid
+            WHERE
+                c.fk_empid = #{empid} and a.accept_yon = 1
+        )h
+        WHERE h.rno between #{startRno} and #{endRno}
+
+	</select>
+	
+	
+	<resultMap id="owner_SettlementList_mobile" type="HashMap">
+	    <result property="pf_res_num" column="pf_res_num" javaType="int"/>
+	    <result property="pf_empid" column="pf_empid" javaType="String"/>
+	    <result property="share_date" column="share_date" javaType="String"/>
+	    <result property="share_may_time" column="share_may_time" javaType="String"/>
+	    <result property="accept_yon" column="accept_yon" javaType="int"/>
+	    <result property="reason_nonaccept" column="reason_nonaccept" javaType="String"/>
+	    <result property="rdp_name" column="rdp_name" javaType="String"/>
+	    <result property="rdp_add" column="rdp_add" javaType="String"/>
+	    <result property="rdp_lat" column="rdp_lat" javaType="double"/>
+	    <result property="rdp_lng" column="rdp_lng" javaType="double"/>
+	    <result property="rds_name" column="rds_name" javaType="String"/>
+	    <result property="rds_add" column="rds_add" javaType="String"/>
+	    <result property="rds_lat" column="rds_lat" javaType="double"/>
+	    <result property="rds_lng" column="rds_lng" javaType="double"/>
+	    <result property="getin_time" column="getin_time" javaType="String"/>
+	    <result property="getout_time" column="getout_time" javaType="String"/>
+	    <result property="use_time" column="use_time" javaType="String"/>
+	    <result property="settled_amount" column="settled_amount" javaType="int"/>
+	    <result property="payment_amount" column="payment_amount" javaType="int"/>
+	    <result property="nonpayment_amount" column="nonpayment_amount" javaType="int"/>
+	    <result property="nickname_owner" column="nickname_owner" javaType="String"/>
+	    <result property="nickname_applicant" column="nickname_applicant" javaType="String"/>
+	</resultMap>
+
+	<select id="getowner_SettlementList_mobile" resultMap="owner_SettlementList_mobile" parameterType="HashMap">
+        SELECT pf_res_num, pf_empid, to_char(share_date, 'yyyy-mm-dd') as share_date, share_may_time, accept_yon, reason_nonaccept, rdp_name, rdp_add, rdp_lat, rdp_lng, rds_name, rds_add, rds_lat, rds_lng, TO_CHAR(getin_time, 'YYYY-MM-DD HH24:MI:SS') AS getin_time, TO_CHAR(getout_time, 'YYYY-MM-DD HH24:MI:SS') AS getout_time, use_time, settled_amount, payment_amount, nonpayment_amount,
+		       d.nickname as nickname_owner, e.nickname as nickname_applicant
+		FROM 
+		    tbl_car_share a
+		JOIN 
+		    tbl_day_share b ON a.pf_res_num = b.res_num
+		JOIN 
+		    tbl_car c ON b.fk_car_seq = c.car_seq
+		JOIN 
+		    tbl_employees d ON c.fk_empid = d.empid
+		JOIN
+		    tbl_employees e ON a.pf_empid = e.empid
+		WHERE
+		    c.fk_empid = #{empid} and to_char(sysdate, 'yyyy-mm-dd') = to_char(share_date, 'yyyy-mm-dd') and a.accept_yon = 1
+	</select>
+	
+
+	<!-- // === #125.총게시물 건수(totalCount) 구하기 (경우의 수 2가지 1.검색어가 있을때 2.검색어가 없을때) ==// -->
+	<select id="getTotalcount_owner_SettlementList_mobile" parameterType="HashMap" resultType="int">
+		SELECT COUNT(*)
+		FROM 
+		    tbl_car_share a
+		JOIN 
+		    tbl_day_share b ON a.pf_res_num = b.res_num
+		JOIN 
+		    tbl_car c ON b.fk_car_seq = c.car_seq
+		JOIN 
+		    tbl_employees d ON c.fk_empid = d.empid
+		JOIN
+		    tbl_employees e ON a.pf_empid = e.empid
+		WHERE
+		    c.fk_empid = #{empid} AND to_char(sysdate, 'yyyy-mm-dd') = to_char(share_date, 'yyyy-mm-dd') and a.accept_yon = 1
+
+	</select>
+	
+	
+	<resultMap id="owner_SettlementList_withPaging_rm_mobile" type="Car_shareVO">
+	    <result property="rno" column="rno" javaType="int"/>
+	    <result property="pf_res_num" column="pf_res_num" javaType="int"/>
+	    <result property="pf_empid" column="pf_empid" javaType="String"/>
+	    <result property="share_date" column="share_date" javaType="String"/>
+	    <result property="share_may_time" column="share_may_time" javaType="String"/>
+	    <result property="accept_yon" column="accept_yon" javaType="int"/>
+	    <result property="reason_nonaccept" column="reason_nonaccept" javaType="String"/>
+	    <result property="rdp_name" column="rdp_name" javaType="String"/>
+	    <result property="rdp_add" column="rdp_add" javaType="String"/>
+	    <result property="rdp_lat" column="rdp_lat" javaType="double"/>
+	    <result property="rdp_lng" column="rdp_lng" javaType="double"/>
+	    <result property="rds_name" column="rds_name" javaType="String"/>
+	    <result property="rds_add" column="rds_add" javaType="String"/>
+	    <result property="rds_lat" column="rds_lat" javaType="double"/>
+	    <result property="rds_lng" column="rds_lng" javaType="double"/>
+	    <result property="getin_time" column="getin_time" javaType="String"/>
+	    <result property="getout_time" column="getout_time" javaType="String"/>
+	    <result property="use_time" column="use_time" javaType="String"/>
+	    <result property="settled_amount" column="settled_amount" javaType="int"/>
+	    <result property="payment_amount" column="payment_amount" javaType="int"/>
+	    <result property="nonpayment_amount" column="nonpayment_amount" javaType="int"/>
+	    <result property="nickname_owner" column="nickname_owner" javaType="String"/>
+	    <result property="nickname_applicant" column="nickname_applicant" javaType="String"/>
+	</resultMap>
+	<select id="getowner_SettlementList_withPaging_mobile" parameterType="HashMap" resultMap="owner_SettlementList_withPaging_rm_mobile">
+		SELECT rno, pf_res_num, pf_empid, share_date, share_may_time, accept_yon, reason_nonaccept, rdp_name, rdp_add, rdp_lat, rdp_lng, rds_name, rds_add, rds_lat, rds_lng, getin_time, getout_time, use_time, settled_amount, payment_amount, nonpayment_amount, nickname_owner, nickname_applicant 
+		FROM
+		(    
+		    SELECT ROW_NUMBER() OVER(ORDER BY pf_res_num DESC) AS rno, pf_res_num, pf_empid, to_char(share_date, 'yyyy-mm-dd') as share_date, share_may_time, accept_yon, reason_nonaccept, rdp_name, rdp_add, rdp_lat, rdp_lng, rds_name, rds_add, rds_lat, rds_lng, TO_CHAR(getin_time, 'YYYY-MM-DD HH24:MI:SS') AS getin_time, TO_CHAR(getout_time, 'YYYY-MM-DD HH24:MI:SS') AS getout_time, use_time, settled_amount, payment_amount, nonpayment_amount,
+		               d.nickname as nickname_owner, e.nickname as nickname_applicant
+		    FROM 
+		        tbl_car_share a
+		    JOIN 
+		        tbl_day_share b ON a.pf_res_num = b.res_num
+		    JOIN 
+		        tbl_car c ON b.fk_car_seq = c.car_seq
+		    JOIN 
+		        tbl_employees d ON c.fk_empid = d.empid
+		    JOIN
+		        tbl_employees e ON a.pf_empid = e.empid
+		    WHERE
+		        c.fk_empid = #{empid} AND to_char(sysdate, 'yyyy-mm-dd') = to_char(share_date, 'yyyy-mm-dd') and a.accept_yon = 1
+		) h
+		WHERE h.rno BETWEEN #{startRno} AND #{endRno}
+	</select>
+	
+	<update id="update_drive_in_time" parameterType="HashMap">
+		update tbl_car_share set getin_time = to_date(#{getin_time}, 'yyyy-mm-dd hh24:mi:ss')
+        where pf_res_num = #{pf_res_num} and pf_empid=#{pf_empid}
+	</update>
+	<update id="update_drive_out_time" parameterType="HashMap">
+		UPDATE tbl_car_share 
+		SET 
+		    getout_time = TO_DATE(#{getout_time}, 'yyyy-mm-dd hh24:mi:ss'),
+		    use_time = CEIL((TO_DATE(#{getout_time}, 'yyyy-mm-dd hh24:mi:ss') - TO_DATE(#{getin_time}, 'yyyy-mm-dd hh24:mi:ss')) * 24 * 60),
+		    settled_amount = CEIL((TO_DATE(#{getout_time}, 'yyyy-mm-dd hh24:mi:ss') - TO_DATE(#{getin_time}, 'yyyy-mm-dd hh24:mi:ss')) * 24 * 60) * 10,
+		    nonpayment_amount = CEIL((TO_DATE(#{getout_time}, 'yyyy-mm-dd hh24:mi:ss') - TO_DATE(#{getin_time}, 'yyyy-mm-dd hh24:mi:ss')) * 24 * 60) * 10
+		WHERE 
+		    pf_res_num = #{pf_res_num} 
+		    AND pf_empid = #{pf_empid}
+
+	</update>
+
+	<resultMap id="customer_applyStatusList" type="Car_shareVO">
+	    <result property="nickname_owner" column="nickname_owner" javaType="String"/>
+	    <result property="pf_res_num" column="pf_res_num" javaType="int"/>
+	    <result property="pf_empid" column="pf_empid" javaType="String"/>
+	    <result property="share_date" column="share_date" javaType="String"/>
+	    <result property="share_may_time" column="share_may_time" javaType="String"/>
+	    <result property="accept_yon" column="accept_yon" javaType="int"/>
+	    <result property="reason_nonaccept" column="reason_nonaccept" javaType="String"/>
+	    <result property="rdp_name" column="rdp_name" javaType="String"/>
+	    <result property="rdp_add" column="rdp_add" javaType="String"/>
+	    <result property="rdp_lat" column="rdp_lat" javaType="double"/>
+	    <result property="rdp_lng" column="rdp_lng" javaType="double"/>
+	    <result property="rds_name" column="rds_name" javaType="String"/>
+	    <result property="rds_add" column="rds_add" javaType="String"/>
+	    <result property="rds_lat" column="rds_lat" javaType="double"/>
+	    <result property="rds_lng" column="rds_lng" javaType="double"/>
+	    <result property="getin_time" column="getin_time" javaType="String"/>
+	    <result property="getout_time" column="getout_time" javaType="String"/>
+	    <result property="use_time" column="use_time" javaType="String"/>
+	    <result property="settled_amount" column="settled_amount" javaType="int"/>
+	    <result property="payment_amount" column="payment_amount" javaType="int"/>
+	    <result property="nonpayment_amount" column="nonpayment_amount" javaType="int"/>
+	</resultMap>
+	<select id="getcustomer_applyStatusList" parameterType="String" resultMap="customer_applyStatusList">
+		SELECT 
+		    ils.nickname as nickname_owner, pf_res_num, pf_empid, to_char(share_date, 'yyyy-mm-dd') as share_date, share_may_time, accept_yon, reason_nonaccept, rdp_name, rdp_add, rdp_lat, rdp_lng, rds_name, rds_add, rds_lat, rds_lng, getin_time, getout_time, use_time, settled_amount, payment_amount, nonpayment_amount
+		FROM 
+		    tbl_car_share ilsj
+		JOIN 
+		    tbl_day_share ilcg ON ilsj.pf_res_num= ilcg.res_num
+		JOIN 
+		    tbl_car sci ON ilcg.fk_car_seq= sci.car_seq
+		JOIN 
+		    tbl_employees ils ON sci.fk_empid = ils.empid
+		where pf_empid = #{empid}
+	</select>
+	
+	
+	<resultMap id="customer_SettlementList" type="Car_shareVO">
+	    <result property="nickname_owner" column="nickname_owner" javaType="String"/>
+	    <result property="pf_res_num" column="pf_res_num" javaType="int"/>
+	    <result property="pf_empid" column="pf_empid" javaType="String"/>
+	    <result property="share_date" column="share_date" javaType="String"/>
+	    <result property="share_may_time" column="share_may_time" javaType="String"/>
+	    <result property="accept_yon" column="accept_yon" javaType="int"/>
+	    <result property="reason_nonaccept" column="reason_nonaccept" javaType="String"/>
+	    <result property="rdp_name" column="rdp_name" javaType="String"/>
+	    <result property="rdp_add" column="rdp_add" javaType="String"/>
+	    <result property="rdp_lat" column="rdp_lat" javaType="double"/>
+	    <result property="rdp_lng" column="rdp_lng" javaType="double"/>
+	    <result property="rds_name" column="rds_name" javaType="String"/>
+	    <result property="rds_add" column="rds_add" javaType="String"/>
+	    <result property="rds_lat" column="rds_lat" javaType="double"/>
+	    <result property="rds_lng" column="rds_lng" javaType="double"/>
+	    <result property="getin_time" column="getin_time" javaType="String"/>
+	    <result property="getout_time" column="getout_time" javaType="String"/>
+	    <result property="use_time" column="use_time" javaType="String"/>
+	    <result property="settled_amount" column="settled_amount" javaType="int"/>
+	    <result property="payment_amount" column="payment_amount" javaType="int"/>
+	    <result property="nonpayment_amount" column="nonpayment_amount" javaType="int"/>
+	    <result property="empid_owner" column="empid_owner" javaType="String"/>
+	</resultMap>
+	<select id="getcustomer_SettlementList" parameterType="String" resultMap="customer_SettlementList">
+		
+		SELECT 
+		    ils.nickname as nickname_owner, ils.empid as empid_owner, pf_res_num, pf_empid, to_char(share_date, 'yyyy-mm-dd') as share_date, share_may_time, accept_yon, reason_nonaccept, rdp_name, rdp_add, rdp_lat, rdp_lng, rds_name, rds_add, rds_lat, rds_lng, getin_time, getout_time, use_time, settled_amount, payment_amount, nonpayment_amount
+		FROM 
+		    tbl_car_share ilsj
+		JOIN 
+		    tbl_day_share ilcg ON ilsj.pf_res_num= ilcg.res_num
+		JOIN 
+		    tbl_car sci ON ilcg.fk_car_seq= sci.car_seq
+		JOIN 
+		    tbl_employees ils ON sci.fk_empid = ils.empid
+		where getin_time is not null and getout_time is not null and pf_empid = #{empid}
+	
+	</select>
+	
+	
+	<update id="pointMinus_applicant" parameterType="HashMap">
+		update tbl_employees set point = point - to_number(#{point})
+		where empid = #{empid}
+	</update>
+	
+	
+	<update id="pointPlus_owner" parameterType="HashMap">
+	     update tbl_employees set point = point + to_number(#{point}) 
+	     where empid = #{empid}
+	</update>
+	
+	
+	<update id="payment_settled" parameterType="HashMap">
+		update tbl_car_share set nonpayment_amount = null, payment_amount = #{point}
+		where pf_empid = #{empid}
+	</update>
+	
+</mapper>

@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="community">
+
+	<select id="category_select" resultType="com.spring.app.domain.CommunityCategoryVO">
+		select category_code, category_name
+		from tbl_community_category
+		order by category_code asc
+	</select>
+	
+	<select id="getCseqOfCommunity" resultType="int">
+		select community_seq.nextval AS community_seq
+		from dual
+	</select>
+	
+	<insert id="add" parameterType="CommunityVO">
+		insert into tbl_community(community_seq, fk_category_code, fk_empid, name, subject, content, pwd, read_count, registerday, status, comment_count)
+		values(to_number(#{community_seq}), to_number(#{fk_category_code}), #{fk_empid}, #{name}, #{subject}, #{content}, #{pwd}, default, default, default, default)
+	</insert>
+	
+	<insert id="community_attachfile_insert" parameterType="HashMap">
+		insert into tbl_community_file(file_seq, fk_community_seq, orgfilename, filename, filesize)
+		values(file_seq.nextval, to_number(#{fk_community_seq}), #{orgfilename}, #{filename}, #{filesize})
+	</insert>
+	
+	<select id="getTotalCount" parameterType="HashMap" resultType="int">
+		select count(*)
+		from tbl_community
+		where status = 1 
+		<choose>
+			<when test='searchType == "subject" and searchWord != ""'>
+				and lower(subject) like '%'||lower(#{searchWord})||'%'
+			</when>
+			<when test='searchType == "content" and searchWord != ""'>
+				and lower(content) like '%'||lower(#{searchWord})||'%'
+			</when>
+			<when test='searchType == "subject_content" and searchWord != ""'>
+				and (lower(subject) like '%'||lower(#{searchWord})||'%' or lower(content) like '%'||lower(#{searchWord})||'%')
+			</when>
+			<when test='searchType == "name" and searchWord != ""'>
+				and lower(name) like '%'||lower(#{searchWord})||'%'
+			</when>
+			<otherwise></otherwise>
+		</choose>
+	</select>
+	
+	<select id="communityListSearch_withPaging" parameterType="HashMap" resultType="CommunityVO">
+		SELECT community_seq, fk_category_code, category_name, fk_empid, name, nickname, imgfilename, subject, content, read_count, registerday, comment_count, fk_community_seq, like_count
+		FROM
+		(
+		    SELECT rownum AS rno
+		         , community_seq, fk_category_code, category_name, fk_empid, name, nickname, imgfilename, subject, content, read_count, registerday, comment_count, fk_community_seq, like_count
+		    FROM 
+		    (
+		        select community_seq, fk_category_code, A.category_name, fk_empid, C.name, E.nickname, E.imgfilename, subject, content 
+		             , read_count, to_char(registerday, 'yyyy-mm-dd hh24:mi:ss') AS registerday, comment_count, F.fk_community_seq, COALESCE(L.like_count, 0) AS like_count
+		        from tbl_community C 
+		        LEFT JOIN tbl_community_category A ON C.fk_category_code = A.category_code
+		        LEFT JOIN (select fk_community_seq from tbl_community_file group by fk_community_seq) F ON C.community_seq = F.fk_community_seq
+		        LEFT JOIN (SELECT fk_community_seq, COUNT(*) AS like_count FROM tbl_community_like GROUP BY fk_community_seq) L ON C.community_seq = L.fk_community_seq
+		        LEFT JOIN tbl_employees E ON C.fk_empid = E.empid 
+		        where C.status = 1
+		        <choose>
+		        	<!-- 검색조건과 검색어가 존재하는 경우 -->
+					<when test='searchType == "subject" and searchWord != ""'>
+						and lower(subject) like '%'||lower(#{searchWord})||'%'
+					</when>
+					<when test='searchType == "content" and searchWord != ""'>
+						and lower(content) like '%'||lower(#{searchWord})||'%'
+					</when>
+					<when test='searchType == "subject_content" and searchWord != ""'>
+						and (lower(subject) like '%'||lower(#{searchWord})||'%' or lower(content) like '%'||lower(#{searchWord})||'%')
+					</when>
+					<when test='searchType == "name" and searchWord != ""'>
+						and lower(name) like '%'||lower(#{searchWord})||'%'
+					</when>
+					<otherwise></otherwise>
+				</choose>
+		        order by community_seq desc
+		    ) V
+		) T
+		WHERE RNO between #{startRno} and #{endRno}
+	</select>
+	
+	<select id="wordSearchShow" parameterType="HashMap" resultType="String">
+		<choose>
+			<when test='searchType == "subject"'>
+				select subject
+			</when>
+			<when test='searchType == "name"'>
+				select distinct name
+			</when>
+		</choose>
+		from tbl_community
+		where status = 1 
+		<choose>
+			<when test='searchType == "subject" and searchWord != ""'>
+				and lower(subject) like '%'||lower(#{searchWord})||'%'
+			</when>
+			<when test='searchType == "name" and searchWord != ""'>
+				and lower(name) like '%'||lower(#{searchWord})||'%'
+			</when>
+		</choose>
+		<choose>
+			<when test='searchType == "subject"'>
+				order by registerday desc
+			</when>
+			<when test='searchType == "name"'>
+				order by name asc
+			</when>
+		</choose>
+	</select>
+	
+	<select id="getView" parameterType="HashMap" resultType="CommunityVO">
+		SELECT previousseq, previoussubject
+		     , community_seq, fk_category_code, fk_empid, name, nickname, subject, content, pwd
+		     , read_count, registerday, comment_count, fk_community_seq
+		     , nextseq, nextsubject
+		FROM
+		(
+			select lag(community_seq, 1) over(order by community_seq desc) AS previousseq
+			     , lag(subject, 1) over(order by community_seq desc) AS previoussubject
+			
+			     , community_seq, fk_category_code, fk_empid, C.name, E.nickname, subject, content, C.pwd
+			     , read_count, to_char(registerday, 'yyyy-mm-dd hh24:mi:ss') AS registerday, comment_count, fk_community_seq
+			     
+			     , lead(community_seq, 1) over(order by community_seq desc) AS nextseq
+			     , lead(subject, 1) over(order by community_seq desc) AS nextsubject
+			from tbl_community C
+			LEFT JOIN (select fk_community_seq from tbl_community_file group by fk_community_seq) F ON C.community_seq = F.fk_community_seq
+			LEFT JOIN tbl_employees E ON C.fk_empid = E.empid
+			where C.status = 1
+			<choose>
+	        	<!-- 검색조건과 검색어가 존재하는 경우 -->
+				<when test='searchType == "subject" and searchWord != ""'>
+					and lower(subject) like '%'||lower(#{searchWord})||'%'
+				</when>
+				<when test='searchType == "content" and searchWord != ""'>
+					and lower(content) like '%'||lower(#{searchWord})||'%'
+				</when>
+				<when test='searchType == "subject_content" and searchWord != ""'>
+					and (lower(subject) like '%'||lower(#{searchWord})||'%' or lower(content) like '%'||lower(#{searchWord})||'%')
+				</when>
+				<when test='searchType == "name" and searchWord != ""'>
+					and lower(name) like '%'||lower(#{searchWord})||'%'
+				</when>
+				<otherwise></otherwise>
+			</choose>
+		) V
+		WHERE V.community_seq = #{community_seq}
+	</select>
+	
+	<update id="increase_readCount" parameterType="String">
+		update tbl_community set read_count = read_count + 1
+		where community_seq = #{community_seq}
+	</update>
+	
+	<select id="getAttachFileList" parameterType="String" resultType="com.spring.app.domain.CommunityFileVO">
+		select orgfilename, filename, filesize
+		from tbl_community_file
+		where fk_community_seq = #{fk_community_seq}	
+	</select>
+	
+	<select id="getFilename" parameterType="HashMap" resultType="com.spring.app.domain.CommunityFileVO">
+		select file_seq, fk_community_seq, orgfilename, filename, filesize
+		from tbl_community_file
+		where fk_community_seq = #{fk_community_seq} and orgfilename = #{orgfilename}
+	</select>
+	
+	<delete id="community_attachfile_delete" parameterType="String">
+		delete from tbl_community_file
+		where fk_community_seq = #{community_seq}
+	</delete>
+	
+	<update id="edit" parameterType="CommunityVO">
+		update tbl_community set fk_category_code = #{fk_category_code}, subject = #{subject}, content = #{content}, registerday = sysdate
+		where community_seq = #{community_seq}
+	</update>
+	
+	<delete id="del" parameterType="String">
+		delete from tbl_community
+		where community_seq = #{fk_community_seq}
+	</delete>
+
+	<insert id="addComment" parameterType="CommentVO">
+		insert into tbl_comment(comment_seq, fk_community_seq, fk_empid, name, content, registerday, status)
+		values(comment_seq.nextval, #{fk_community_seq}, #{fk_empid}, #{name}, #{content}, default, default)
+	</insert>
+	
+	<update id="updateCommentCount" parameterType="String">
+		update tbl_community set comment_count = comment_count + 1
+		where community_seq = #{fk_community_seq}
+	</update>
+	
+	<update id="updateMemberPoint" parameterType="HashMap">
+		update tbl_employees set point = point + to_number(#{point}) 
+		where empid = #{empid}
+	</update>
+	
+	<select id="getCommentList_Paging" parameterType="HashMap" resultType="CommentVO">
+		SELECT comment_seq, fk_community_seq, fk_empid, name, nickname, content, registerday 
+		FROM
+		(
+		    select row_number() over(order by comment_seq desc) AS rno
+		         , comment_seq, fk_community_seq, fk_empid, C.name, nickname, content, to_char(registerday, 'yyyy-mm-dd hh24:mi:ss') AS registerday
+		    from tbl_comment C
+		    LEFT JOIN tbl_employees E ON C.fk_empid = E.empid
+		    where C.status = 1 and fk_community_seq = #{fk_community_seq}
+		    order by comment_seq desc
+		) V
+		WHERE V.rno between #{startRno} and #{endRno}
+	</select>
+	
+	<select id="getCommentTotalCount" parameterType="String" resultType="int">
+		select count(*)
+		from tbl_comment
+		where fk_community_seq = #{fk_community_seq}
+	</select>
+	
+	<update id="updateComment" parameterType="HashMap">
+		update tbl_comment set content = #{content}, registerday = sysdate
+		where comment_seq = #{comment_seq}
+	</update>
+	
+	<delete id="deleteComment" parameterType="String">
+		delete from tbl_comment 
+		where comment_seq = #{comment_seq}
+	</delete>
+	
+	<update id="updateCommentCount_decrease" parameterType="String">
+		update tbl_community set comment_count = comment_count - 1
+		where community_seq = #{fk_community_seq}
+	</update>
+	
+	<insert id="likeAdd" parameterType="HashMap">
+		insert into tbl_community_like(fk_empid, fk_community_seq)
+		values(#{fk_empid}, #{fk_community_seq})
+	</insert>
+	
+	<delete id="likeMinus" parameterType="HashMap">
+		delete from tbl_community_like
+		where fk_empid = #{fk_empid} and fk_community_seq = #{fk_community_seq}
+	</delete>
+
+</mapper>

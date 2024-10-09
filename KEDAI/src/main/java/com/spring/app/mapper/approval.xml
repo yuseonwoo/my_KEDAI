@@ -1,0 +1,752 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="approval">
+
+	<select id="getDeptNumber" resultType="String" parameterType="HashMap">
+		select dept_name
+		from tbl_dept
+		where dept_code = to_number(#{dept_code})
+	</select>
+	
+	<!-- 
+	<resultMap type="HashMap" id="">
+	
+	</resultMap>
+	
+	<select id="numByDept" resultMap="numDept" >
+		SELECT D.dept_name, COUNT(E.empid) AS employee_count
+		FROM tbl_employees E
+		LEFT JOIN tbl_dept D
+		ON E.fk_dept_code = D.dept_code
+		GROUP BY E.fk_dept_code, D.dept_name
+		ORDER BY D.dept_name DESC
+	</select>
+ -->
+ 
+	
+	<!-- 결재라인 선택을 위해 모든 직원 리스트 불러오기 -->
+ 	<select id="allDeptList" resultType="com.spring.app.domain.DeptVO">
+ 		SELECT CASE WHEN D.dept_code IS NULL THEN ' ' ELSE TO_CHAR(D.dept_code) END AS dept_code,
+       			nvl(D.dept_name, ' ') as dept_name
+		FROM tbl_dept D
+		RIGHT JOIN tbl_employees E ON E.fk_dept_code = D.dept_code
+		GROUP BY D.dept_code, D.dept_name
+		ORDER BY D.dept_code desc
+ 	</select>
+ 
+ 
+ 	<resultMap type="HashMap" id="deptEmpMap">
+ 		<result property="empid" column="empid" javaType="String" ></result>
+		<result property="name" column="name" javaType="String" ></result>
+		<result property="fk_dept_code" column="fk_dept_code" javaType="String" ></result>
+		<result property="dept_name" column="dept_name" javaType="String" ></result>
+		<result property="job_code" column="job_code" javaType="String" ></result>
+		<result property="job_name" column="job_name" javaType="String" ></result>
+ 	</resultMap>
+ 
+ 	<select id="deptEmpList" resultMap="deptEmpMap">
+ 		select E.empid, E.name, J.job_code, J.job_name, CASE WHEN D.dept_code IS NULL THEN ' ' ELSE TO_CHAR(D.dept_code) END AS fk_dept_code,
+       				nvl(D.dept_name, ' ') as dept_name
+		FROM  tbl_employees E
+		JOIN tbl_job J
+		ON  E.fk_job_code = J.job_code
+		LEFT JOIN tbl_dept D
+		ON E.fk_dept_code = D.dept_code
+		where empid != #{loginuser_id} 
+		<choose>
+        	<when test='dept_code == " "'>
+	   			and fk_dept_code is null	
+    		</when>
+ 			<otherwise>
+ 				and fk_dept_code = to_number(#{dept_code})
+ 			</otherwise>
+ 		</choose>
+		ORDER BY D.dept_code asc, J.job_code ASC
+	</select>
+ 	
+ 	<!-- 	// doc_no의 시퀀스 채번해오기 -->
+ 	<select id="getDoc_noSeq" resultType="String">
+ 		select doc_noSeq.nextval
+		from dual
+ 	</select>
+ 	
+ 	 	<!--  approval_noSeq 시퀀스 채번해오기  -->
+ 	<select id="getApproval_noSeq" resultType="String">
+ 		select approval_noSeq.nextval
+		from dual
+ 	</select>
+ 	
+ 	
+ 	<!-- 첨부파일이 없는 서류 작성하기(tbl_doc) -->
+ 	<insert id="noFile_newdoc" parameterType="HashMap">
+		insert into tbl_doc(doc_no, fk_doctype_code, fk_empid, doc_subject, doc_content, created_date)
+		values(#{docvo.doc_no}, #{docvo.fk_doctype_code}, #{docvo.fk_empid}, #{docvo.doc_subject}, #{docvo.doc_content}, to_date(#{docvo.created_date}, 'yyyy-mm-dd'))
+	</insert>
+ 	
+ 	
+ 	<!-- 첨부파일이 없는 서류 작성하기(tbl_minutes) -->
+ 	<insert id="noFile_minutes" parameterType="HashMap">
+		insert into tbl_minutes(minutes_no, fk_doc_no, meeting_date, attendees, host_dept)
+		values( minutes_noSeq.nextval, #{fk_doc_no}, to_date(#{meeting_date}, 'yyyy-mm-dd'), #{attendees}, #{host_dept})
+	</insert>
+ 	
+ 	<!-- 첨부파일이 없는 서류 작성하기(noFile_dayoff) -->
+ 	<insert id="noFile_dayoff" parameterType="HashMap">
+		insert into tbl_dayoff(dayoff_no, fk_doc_no, startdate, enddate, start_half, end_half, offdays)
+		values( dayoff_noSeq.nextval, #{fk_doc_no}, #{startdate}, #{enddate}, #{start_half}, #{end_half}, #{request_annual_leave})
+	</insert>
+ 	
+ 	<!-- 첨부파일이 없는 서류 작성하기(tbl_approval) -->
+ 	<insert id="noFile_approval" parameterType="HashMap">
+ 		insert into tbl_approval(approval_no, fk_doc_no, fk_empid, status, level_no)
+		values(to_number(#{approval_no}), #{fk_doc_no}, #{empId}, 0, #{level_no})		
+	</insert>
+	
+	<!-- 첨부파일이 있을 때 첨부파일 insert하기 -->
+	<insert id="withFile_doc" parameterType="HashMap">
+		insert into tbl_doc_file(doc_file_no, fk_doc_no, doc_org_filename, doc_filename, doc_filesize)
+		values( doc_file_noSeq.nextval, #{fk_doc_no}, #{doc_org_filename}, #{doc_filename}, to_number(#{doc_filesize}))
+	</insert>
+
+<!--  
+	<resultMap type="HashMap" id="docList_Map">
+ 		<result property="doc_no" 			column="doc_no" 			javaType="String" ></result>
+		<result property="fk_empid" 		column="fk_empid" 			javaType="String" ></result>
+		<result property="doc_subject" 		column="doc_subject" 		javaType="String" ></result>
+		<result property="created_date" 	column="created_date" 		javaType="String" ></result>
+		<result property="doctype_name" 	column="doctype_name" 		javaType="String" ></result>
+		<result property="status" 			column="status" 			javaType="String" ></result>
+		<result property="level_no" 		column="level_no" 			javaType="String" ></result>
+		<result property="approval_empid" 	column="approval_empid" 	javaType="String" ></result>
+		<result property="isAttachment" 	column="isAttachment" 		javaType="String" ></result>
+		<result property="doc_status" 		column="doc_status" 		javaType="String" ></result>
+ 	</resultMap>-->
+
+	<select id="docListNoSearch" parameterType="String" resultType="DocVO">
+		SELECT  D.doc_no, D.fk_empid, D.doc_subject, to_char(D.created_date, 'yyyy-mm-dd') as created_date
+    		, T.doctype_name, T.doctype_code as fk_doctype_code
+    		, CASE WHEN F.fk_doc_no IS NOT NULL THEN '1' ELSE '0' END AS isAttachment, doc_status
+		FROM tbl_doc D
+		JOIN tbl_doctype T ON T.doctype_code = D.fk_doctype_code
+		LEFT JOIN ( 
+		    SELECT fk_doc_no
+		    FROM tbl_doc_file
+		    GROUP BY fk_doc_no
+		) F 
+		ON F.fk_doc_no = D.doc_no
+		WHERE D.fk_empid = #{loginEmpId} and doc_status =1
+		ORDER BY D.created_date DESC, D.DOC_NO DESC
+	</select>
+ 
+ <!--  
+ 	<select id="myApprovalDoc" resultMap="docList_Map">
+ 		SELECT D.doc_no, D.fk_empid, D.doc_subject, to_char(D.created_date, 'yyyy-mm-dd') as created_date
+    		, T.doctype_name, A.status, A.level_no, A.fk_empid AS APPROVAL_EMPID
+    		, CASE WHEN F.fk_doc_no IS NOT NULL THEN '1' ELSE '0' END AS isAttachment
+		from tbl_doc D
+		JOIN tbl_doctype T
+		ON T.doctype_code = D.fk_doctype_code
+		JOIN tbl_approval A
+		ON A.fk_doc_no = D.doc_no
+		LEFT JOIN (
+		        SELECT fk_doc_no
+		        FROM tbl_doc_file
+		        GROUP BY fk_doc_no
+		) F ON F.fk_doc_no = D.doc_no
+		where A.fk_empid = #{loginEmpId}
+ 	</select>
+ -->
+ 	
+ 	
+ 	<resultMap type="HashMap" id="docInfo_Map">
+ 		<result property="approval_no" 		column="approval_no" 		javaType="String" ></result>
+		<result property="doc_no" 			column="doc_no" 			javaType="String" ></result>
+		<result property="fk_empid" 		column="fk_empid" 			javaType="String" ></result>
+		<result property="status" 			column="status" 			javaType="String" ></result>
+		<result property="level_no" 		column="level_no"			javaType="String" ></result>
+		<result property="doc_subject" 		column="doc_subject" 		javaType="String" ></result>
+		<result property="created_date"		column="created_date" 		javaType="String" ></result>
+		<result property="doctype_name" 	column="doctype_name" 		javaType="String" ></result>
+		<result property="doctype_code" 	column="doctype_code" 		javaType="String" ></result>
+		<result property="pre_status" 		column="pre_status" 		javaType="String" ></result>
+		<result property="pre_level_no" 	column="pre_level_no" 		javaType="String" ></result>
+		<result property="pre_empid" 		column="pre_empid" 			javaType="String" ></result>
+		<result property="isAttachment" 	column="isAttachment" 		javaType="String" ></result>
+		<result property="doc_status" 		column="doc_status" 		javaType="String" ></result>
+ 	</resultMap>
+ 	
+ 	<select id="myapprovalinfo" resultMap="docInfo_Map">
+ 		SELECT A1.approval_no, A1.fk_doc_no as doc_no, A1.fk_empid, A1.status, A1.level_no, 
+		        D.doc_subject, to_char(D.created_date, 'yyyy-mm-dd') as created_date, T.doctype_name, T.doctype_code,
+		        A2.status AS pre_status, A2.level_no AS pre_level_no, A2.fk_empid as pre_empid,
+		        CASE WHEN F.fk_doc_no IS NOT NULL THEN '1' ELSE '0' END AS isAttachment, doc_status
+		FROM tbl_approval A1
+		JOIN tbl_doc D 
+		ON D.doc_no = A1.fk_doc_no
+		JOIN tbl_doctype T 
+		ON T.doctype_code = D.fk_doctype_code
+		LEFT JOIN tbl_approval A2 
+		ON A1.FK_DOC_NO = A2.FK_DOC_NO AND A2.LEVEL_NO = A1.LEVEL_NO + 1
+		LEFT JOIN (
+		    SELECT fk_doc_no
+		    FROM tbl_doc_file
+		    GROUP BY fk_doc_no
+		) F ON F.fk_doc_no = D.doc_no
+		WHERE A1.FK_EMPID = #{loginEmpId}
+		ORDER BY D.created_date DESC, D.DOC_NO DESC
+ 	</select>
+ 	
+ 	<!-- 내 기안 문서의 총 게시물 건수(totalCount) 구하기  - 검색이 있을 때와 검색이 없을 때로 나뉜다. -->
+ 	<!-- resultType="Integer" 원래  resultType에는 클래스가 들어가서 Integer를 넣어야 하지만 int라고 해도 다 호환된다~! -->
+ 	<select id="getTotalMyDocCount" parameterType="HashMap" resultType="int">
+ 		select count(*)
+		from tbl_doc D
+		where fk_empid = #{loginEmpId}   
+		<choose>
+			<when test='searchType == "doctype_name" and searchWord != "" '>
+				and lower(doctype_name) like '%'|| lower(#{searchWord}) || '%'
+			</when>
+			<when test='searchType == "doc_subject" and searchWord != ""'>
+				and lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' 
+			</when>
+			<when test='searchType == "doc_content" and searchWord != ""'>
+				and lower(doc_content) like '%'|| lower(#{searchWord}) || '%'
+			</when>
+			<when test='searchType == "doc_no" and searchWord != ""'>
+				and lower(doc_no) like '%'|| lower(#{searchWord}) || '%'
+			</when>
+			<when test='searchType == "doc_subject_content" and searchWord != ""'>
+				and (lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' or lower(doc_content) like '%'|| lower(#{searchWord}) || '%')
+			</when>
+			<otherwise></otherwise>
+		</choose>
+ 	</select>
+ 	
+ 	<!--  나의 결재 문서에서 총 게시물 건수(totalCount) 구하기  - 검색이 있을 때와 검색이 없을 때로 나뉜다. -->
+ 	<!-- resultType="Integer" 원래  resultType에는 클래스가 들어가서 Integer를 넣어야 하지만 int라고 해도 다 호환된다~! -->
+ 	<select id="getTotalMyNowApprovalCount" parameterType="HashMap" resultType="int">
+ 		SELECT count(*)
+		FROM tbl_approval A1
+		JOIN tbl_doc D 
+		ON D.doc_no = A1.fk_doc_no
+		JOIN tbl_doctype T 
+		ON T.doctype_code = D.fk_doctype_code
+		LEFT JOIN tbl_approval A2 
+		ON A1.FK_DOC_NO = A2.FK_DOC_NO AND A2.LEVEL_NO = A1.LEVEL_NO + 1
+		LEFT JOIN (
+		    SELECT fk_doc_no
+		    FROM tbl_doc_file
+		    GROUP BY fk_doc_no
+		) F ON F.fk_doc_no = D.doc_no
+		WHERE ((D.doc_status = 0 AND A2.status = 1) OR A2.status IS NULL) AND A1.FK_EMPID = #{loginEmpId}   
+		<choose>
+			<when test='searchType == "doctype_name" and searchWord != "" '>
+				and lower(doctype_name) like '%'|| lower(#{searchWord}) || '%'
+			</when>
+			<when test='searchType == "doc_subject" and searchWord != ""'>
+				and lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' 
+			</when>
+			<when test='searchType == "doc_content" and searchWord != ""'>
+				and lower(doc_content) like '%'|| lower(#{searchWord}) || '%'
+			</when>
+			<when test='searchType == "doc_no" and searchWord != ""'>
+				and lower(doc_no) like '%'|| lower(#{searchWord}) || '%'
+			</when>
+			<when test='searchType == "doc_subject_content" and searchWord != ""'>
+				and (lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' or lower(doc_content) like '%'|| lower(#{searchWord}) || '%')
+			</when>
+			<otherwise></otherwise>
+		</choose>
+ 	</select>
+ 	
+
+ 	<!--  나의 결재 문서에서 총 게시물 건수(totalCount) 구하기  - 검색이 있을 때와 검색이 없을 때로 나뉜다. -->
+ 	<!-- resultType="Integer" 원래  resultType에는 클래스가 들어가서 Integer를 넣어야 하지만 int라고 해도 다 호환된다~! -->
+ 	<select id="getTotalMyApprovalCount" parameterType="HashMap" resultType="int">
+ 		SELECT count(*)
+		FROM tbl_approval A1
+		JOIN tbl_doc D 
+		ON D.doc_no = A1.fk_doc_no
+		JOIN tbl_doctype T 
+		ON T.doctype_code = D.fk_doctype_code
+		LEFT JOIN (
+		    SELECT fk_doc_no
+		    FROM tbl_doc_file
+		    GROUP BY fk_doc_no
+		) F ON F.fk_doc_no = D.doc_no
+		WHERE A1.FK_EMPID = #{loginEmpId}   
+		<choose>
+			<when test='searchType == "doctype_name" and searchWord != "" '>
+				and lower(doctype_name) like '%'|| lower(#{searchWord}) || '%'
+			</when>
+			<when test='searchType == "doc_subject" and searchWord != ""'>
+				and lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' 
+			</when>
+			<when test='searchType == "doc_content" and searchWord != ""'>
+				and lower(doc_content) like '%'|| lower(#{searchWord}) || '%'
+			</when>
+			<when test='searchType == "doc_no" and searchWord != ""'>
+				and lower(doc_no) like '%'|| lower(#{searchWord}) || '%'
+			</when>
+			<when test='searchType == "doc_subject_content" and searchWord != ""'>
+				and (lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' or lower(doc_content) like '%'|| lower(#{searchWord}) || '%')
+			</when>
+			<otherwise></otherwise>
+		</choose>
+ 	</select>
+ 	
+ 	<!-- 팀문서 총 수 구하기 -->
+ 	<select id="getTotalTeamCount" parameterType="HashMap" resultType="int">
+ 		SELECT count(*)
+		FROM tbl_doc D 
+		JOIN tbl_approval A1
+		ON D.doc_no = A1.fk_doc_no
+		JOIN tbl_doctype T 
+        ON T.doctype_code = D.fk_doctype_code
+        JOIN tbl_employees E
+        ON E.empid = D.fk_empid
+        WHERE FK_DEPT_CODE= #{loginDeptCode}   
+		<choose>
+			<when test='searchType == "doctype_name" and searchWord != "" '>
+				and lower(doctype_name) like '%'|| lower(#{searchWord}) || '%'
+			</when>
+			<when test='searchType == "doc_subject" and searchWord != ""'>
+				and lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' 
+			</when>
+			<when test='searchType == "doc_content" and searchWord != ""'>
+				and lower(doc_content) like '%'|| lower(#{searchWord}) || '%'
+			</when>
+			<when test='searchType == "doc_no" and searchWord != ""'>
+				and lower(doc_no) like '%'|| lower(#{searchWord}) || '%'
+			</when>
+			<when test='searchType == "doc_subject_content" and searchWord != ""'>
+				and (lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' or lower(doc_content) like '%'|| lower(#{searchWord}) || '%')
+			</when>
+			<otherwise></otherwise>
+		</choose>
+ 	</select>
+ 	
+ 	<select id="getTotalAllCount" parameterType="HashMap" resultType="int">
+ 		SELECT count(*)
+		FROM tbl_doc D 
+		JOIN tbl_approval A1
+		ON D.doc_no = A1.fk_doc_no
+		JOIN tbl_doctype T 
+        ON T.doctype_code = D.fk_doctype_code
+        JOIN tbl_employees E
+        ON E.empid = D.fk_empid
+		<choose>
+			<when test='searchType == "doctype_name" and searchWord != "" '>
+				and lower(doctype_name) like '%'|| lower(#{searchWord}) || '%'
+			</when>
+			<when test='searchType == "doc_subject" and searchWord != ""'>
+				and lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' 
+			</when>
+			<when test='searchType == "doc_content" and searchWord != ""'>
+				and lower(doc_content) like '%'|| lower(#{searchWord}) || '%'
+			</when>
+			<when test='searchType == "doc_no" and searchWord != ""'>
+				and lower(doc_no) like '%'|| lower(#{searchWord}) || '%'
+			</when>
+			<when test='searchType == "doc_subject_content" and searchWord != ""'>
+				and (lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' or lower(doc_content) like '%'|| lower(#{searchWord}) || '%')
+			</when>
+			<otherwise></otherwise>
+		</choose>
+ 	</select>
+ 	
+ 	
+ 	<!--  
+ 	<resultMap type="HashMap" id="myDocListSearch_Map">
+ 		<result property="rno" 				column="rno" 				javaType="String" ></result>
+		<result property="doc_no" 			column="doc_no" 			javaType="String" ></result>
+		<result property="fk_empid" 		column="fk_empid" 			javaType="String" ></result>
+		<result property="name" 			column="name" 				javaType="String" ></result>
+		<result property="doc_subject" 		column="doc_subject"		javaType="String" ></result>
+		<result property="doc_content" 		column="doc_content" 		javaType="String" ></result>
+		<result property="created_date"		column="created_date" 		javaType="String" ></result>
+		<result property="doctype_name" 	column="doctype_name" 		javaType="String" ></result>
+		<result property="doc_status" 		column="doc_status" 		javaType="String" ></result>
+		<result property="isAttachment" 	column="isAttachment" 		javaType="String" ></result>
+ 	</resultMap>
+ 	-->
+ 	 	<select id="myDocListSearch" parameterType="HashMap" resultType="DocVO">
+ 		SELECT rno, doc_no, fk_empid, name, doc_subject, doc_content, created_date, doctype_name
+        	 , doc_status, isAttachment, fk_doctype_code
+		FROM(
+    		SELECT rownum AS rno
+         		, doc_no, fk_empid, name, doc_subject, doc_content, created_date, doctype_name
+         		, doc_status, isAttachment, fk_doctype_code
+    		FROM (
+    			SELECT D.doc_no, D.fk_empid, E.name, D.doc_subject, D.doc_content,
+                	to_char(created_date, 'yyyy-mm-dd') AS created_date, T.doctype_name, D.doc_status,
+                	CASE WHEN F.fk_doc_no IS NOT NULL THEN '1' ELSE '0' END AS isAttachment, fk_doctype_code
+		        FROM tbl_doc D
+		        JOIN tbl_doctype T
+		        ON D.fk_doctype_code = T.doctype_code  
+		        JOIN tbl_employees E
+		        ON D.fk_empid = E.empid
+		        LEFT JOIN (
+		                SELECT fk_doc_no
+		                FROM tbl_doc_file
+		                GROUP BY fk_doc_no
+		        ) F ON F.fk_doc_no = D.doc_no
+		        where fk_empid = #{loginEmpId}
+        		<choose>
+            		<when test='searchType == "doctype_name" and searchWord != "" '>
+                		and lower(doctype_name) like '%'|| lower(#{searchWord}) || '%'
+		            </when>
+		            <when test='searchType == "doc_subject" and searchWord != ""'>
+		                and lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' 
+		            </when>
+		            <when test='searchType == "doc_content" and searchWord != ""'>
+		                and lower(doc_content) like '%'|| lower(#{searchWord}) || '%'
+		            </when>
+		            <when test='searchType == "doc_no" and searchWord != ""'>
+		                and lower(doc_no) like '%'|| lower(#{searchWord}) || '%'
+		            </when>
+		            <when test='searchType == "doc_subject_content" and searchWord != ""'>
+		                and (lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' or lower(doc_content) like '%'|| lower(#{searchWord}) || '%')
+		            </when>
+		            <otherwise></otherwise>
+		        </choose> 
+        		ORDER BY D.created_date DESC, D.DOC_NO DESC
+    		) V
+		) T2     
+		WHERE rno between #{startRno} and #{endRno}
+	</select>
+	
+	
+	<resultMap type="HashMap" id="myNowApprovalList_Map">
+ 		<result property="rno" 				column="rno" 				javaType="String" ></result>
+		<result property="approval_no" 		column="approval_no" 		javaType="String" ></result>
+		<result property="doc_no" 			column="doc_no" 			javaType="String" ></result>
+		<result property="fk_empid" 		column="fk_empid" 			javaType="String" ></result>
+		<result property="status" 			column="status" 			javaType="String" ></result>
+		<result property="level_no" 		column="level_no" 			javaType="String" ></result>
+		<result property="doc_subject" 		column="doc_subject"		javaType="String" ></result>
+		<result property="doc_content" 		column="doc_content" 		javaType="String" ></result>
+		<result property="created_date"		column="created_date" 		javaType="String" ></result>
+		<result property="doctype_name" 	column="doctype_name" 		javaType="String" ></result>
+		<result property="isAttachment" 	column="isAttachment" 		javaType="String" ></result>
+		<result property="doc_status" 		column="doc_status" 		javaType="String" ></result>
+		<result property="name" 			column="name" 				javaType="String" ></result>
+		<result property="writer" 			column="name" 				javaType="String" ></result>
+		<result property="dept_name" 		column="name" 				javaType="String" ></result>
+		<result property="fk_doctype_code" 	column="fk_doctype_code" 	javaType="String" ></result>
+ 	</resultMap>
+
+	<select id="myNowApprovalListSearch" parameterType="HashMap" resultMap="myNowApprovalList_Map">  
+		SELECT rno, approval_no, doc_no, fk_empid, status, level_no, doc_subject, doc_content, created_date, doctype_name,
+       		isAttachment, doc_status, NAME, writer, dept_name, fk_doctype_code
+		FROM (
+    		SELECT rownum AS rno,
+           		approval_no, fk_doc_no as doc_no, fk_empid, status, level_no, doc_subject, created_date, doctype_name,
+           		pre_status, pre_level_no, pre_empid, isAttachment, doc_status, NAME, writer, dept_name, doc_content, fk_doctype_code
+    		FROM (
+        		SELECT A1.approval_no, A1.fk_doc_no, A1.fk_empid, A1.status, A1.level_no, 
+               		D.doc_subject, to_char(D.created_date, 'yyyy-mm-dd') as created_date, T.doctype_name,
+               		A2.status AS pre_status, A2.level_no AS pre_level_no, A2.fk_empid as pre_empid,
+               		CASE WHEN F.fk_doc_no IS NOT NULL THEN '1' ELSE '0' END AS isAttachment, D.doc_status, NAME, dept_name, D.fk_empid AS writer
+               		, doc_content, fk_doctype_code
+        		FROM tbl_approval A1
+        		JOIN tbl_doc D 
+        		ON D.doc_no = A1.fk_doc_no
+        		JOIN tbl_doctype T 
+        		ON T.doctype_code = D.fk_doctype_code
+        		LEFT JOIN tbl_approval A2 
+        		ON A1.FK_DOC_NO = A2.FK_DOC_NO AND A2.LEVEL_NO = A1.LEVEL_NO + 1
+        		LEFT JOIN (
+            		SELECT fk_doc_no
+            		FROM tbl_doc_file
+            		GROUP BY fk_doc_no
+        		) F ON F.fk_doc_no = D.doc_no
+        		JOIN tbl_employees E
+        		ON E.empid = D.fk_empid
+        		JOIN tbl_dept DP
+        		ON E.fk_dept_code = DP.dept_code
+        		WHERE ((D.doc_status = 1 AND A2.status = 1) OR (A2.status IS NULL AND D.doc_status = 0))
+          			AND A1.FK_EMPID = #{loginEmpId}
+          		<choose>
+            		<when test='searchType == "doctype_name" and searchWord != "" '>
+                		and lower(doctype_name) like '%'|| lower(#{searchWord}) || '%'
+		            </when>
+		            <when test='searchType == "doc_subject" and searchWord != ""'>
+		                and lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' 
+		            </when>
+		            <when test='searchType == "doc_content" and searchWord != ""'>
+		                and lower(doc_content) like '%'|| lower(#{searchWord}) || '%'
+		            </when>
+		            <when test='searchType == "doc_no" and searchWord != ""'>
+		                and lower(doc_no) like '%'|| lower(#{searchWord}) || '%'
+		            </when>
+		            <when test='searchType == "doc_subject_content" and searchWord != ""'>
+		                and (lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' or lower(doc_content) like '%'|| lower(#{searchWord}) || '%')
+		            </when>
+		            <otherwise></otherwise>
+		     	</choose> 
+        		ORDER BY D.created_date DESC, D.doc_no DESC
+			) V
+		)T2
+		WHERE rno between #{startRno} and #{endRno}
+	</select>
+	
+	
+	<select id="allmyAppListSearch" parameterType="HashMap" resultType="DocVO">  
+		SELECT rno, doc_no, fk_empid, doc_status, doc_subject, doc_content, created_date, doctype_name,
+       		isAttachment, NAME, dept_name, fk_doctype_code
+		FROM (
+    		SELECT rownum AS rno,
+           		approval_no, fk_doc_no as doc_no, fk_empid, status, level_no, doc_subject, created_date, doctype_name,
+           		isAttachment, doc_status, NAME, writer, dept_name, doc_content, fk_doctype_code
+    		FROM (
+        		SELECT A1.approval_no, A1.fk_doc_no, A1.fk_empid, A1.status, A1.level_no, 
+               		D.doc_subject, to_char(D.created_date, 'yyyy-mm-dd') as created_date, T.doctype_name,
+               		CASE WHEN F.fk_doc_no IS NOT NULL THEN '1' ELSE '0' END AS isAttachment, D.doc_status, NAME, dept_name, D.fk_empid AS writer
+               		, doc_content, fk_doctype_code
+        		FROM tbl_approval A1
+        		JOIN tbl_doc D 
+        		ON D.doc_no = A1.fk_doc_no
+        		JOIN tbl_doctype T 
+        		ON T.doctype_code = D.fk_doctype_code
+        		LEFT JOIN (
+            		SELECT fk_doc_no
+            		FROM tbl_doc_file
+            		GROUP BY fk_doc_no
+        		) F ON F.fk_doc_no = D.doc_no
+        		JOIN tbl_employees E
+        		ON E.empid = D.fk_empid
+        		JOIN tbl_dept DP
+        		ON E.fk_dept_code = DP.dept_code
+        		WHERE A1.FK_EMPID = #{loginEmpId}
+          		<choose>
+            		<when test='searchType == "doctype_name" and searchWord != "" '>
+                		and lower(doctype_name) like '%'|| lower(#{searchWord}) || '%'
+		            </when>
+		            <when test='searchType == "doc_subject" and searchWord != ""'>
+		                and lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' 
+		            </when>
+		            <when test='searchType == "doc_content" and searchWord != ""'>
+		                and lower(doc_content) like '%'|| lower(#{searchWord}) || '%'
+		            </when>
+		            <when test='searchType == "doc_no" and searchWord != ""'>
+		                and lower(doc_no) like '%'|| lower(#{searchWord}) || '%'
+		            </when>
+		            <when test='searchType == "doc_subject_content" and searchWord != ""'>
+		                and (lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' or lower(doc_content) like '%'|| lower(#{searchWord}) || '%')
+		            </when>
+		            <otherwise></otherwise>
+		     	</choose> 
+        		ORDER BY D.created_date DESC, D.doc_no DESC
+			) V
+		)T2
+		WHERE rno between #{startRno} and #{endRno}
+	</select>
+	
+	
+	<!-- 모든 팀문서 가져오기 -->
+	<select id="allteamDocListSearch" parameterType="HashMap" resultType="DocVO">  
+		SELECT rno, doc_no, fk_empid, doc_status, doc_subject, doc_content, created_date, doctype_name,
+       		isAttachment, NAME, dept_name, fk_doctype_code
+		FROM (
+    		SELECT rownum AS rno,doc_no,
+           		fk_empid, doc_subject, created_date, doctype_name,
+           		isAttachment, doc_status, NAME, writer, dept_name, doc_content, fk_doctype_code
+    		FROM (
+        		SELECT D.doc_no, D.fk_empid, 
+               		D.doc_subject, to_char(D.created_date, 'yyyy-mm-dd') as created_date, T.doctype_name,
+               		CASE WHEN F.fk_doc_no IS NOT NULL THEN '1' ELSE '0' END AS isAttachment, D.doc_status, NAME, dept_name, D.fk_empid AS writer
+               		, doc_content, fk_doctype_code
+        		FROM tbl_doc D 
+        		JOIN tbl_doctype T 
+        		ON T.doctype_code = D.fk_doctype_code
+        		LEFT JOIN (
+            		SELECT fk_doc_no
+            		FROM tbl_doc_file
+            		GROUP BY fk_doc_no
+        		) F ON F.fk_doc_no = D.doc_no
+        		JOIN tbl_employees E
+        		ON E.empid = D.fk_empid
+        		JOIN tbl_dept DP
+        		ON E.fk_dept_code = DP.dept_code
+        		WHERE FK_DEPT_CODE = #{loginDeptCode}
+          		<choose>
+            		<when test='searchType == "doctype_name" and searchWord != "" '>
+                		and lower(doctype_name) like '%'|| lower(#{searchWord}) || '%'
+		            </when>
+		            <when test='searchType == "doc_subject" and searchWord != ""'>
+		                and lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' 
+		            </when>
+		            <when test='searchType == "doc_content" and searchWord != ""'>
+		                and lower(doc_content) like '%'|| lower(#{searchWord}) || '%'
+		            </when>
+		            <when test='searchType == "doc_no" and searchWord != ""'>
+		                and lower(doc_no) like '%'|| lower(#{searchWord}) || '%'
+		            </when>
+		            <when test='searchType == "doc_subject_content" and searchWord != ""'>
+		                and (lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' or lower(doc_content) like '%'|| lower(#{searchWord}) || '%')
+		            </when>
+		            <otherwise></otherwise>
+		     	</choose> 
+        		ORDER BY D.created_date DESC, D.doc_no DESC
+			) V
+		)T2
+		WHERE rno between #{startRno} and #{endRno}
+	</select>
+	
+	
+	<!-- 모든 문서 가져오기 -->
+	<select id="allDocListSearch" parameterType="HashMap" resultType="DocVO">  
+		SELECT rno, doc_no, fk_empid, doc_status, doc_subject, doc_content, created_date, doctype_name,
+       		isAttachment, NAME, dept_name, fk_doctype_code
+		FROM (
+    		SELECT rownum AS rno,
+           		doc_no, fk_empid, doc_subject, created_date, doctype_name,
+           		isAttachment, doc_status, NAME, writer, dept_name, doc_content, fk_doctype_code
+    		FROM (
+        		SELECT D.doc_no, D.fk_empid,
+               		D.doc_subject, to_char(D.created_date, 'yyyy-mm-dd') as created_date, T.doctype_name,
+               		CASE WHEN F.fk_doc_no IS NOT NULL THEN '1' ELSE '0' END AS isAttachment, D.doc_status, NAME, dept_name, D.fk_empid AS writer
+               		, doc_content, fk_doctype_code
+        		FROM tbl_doc D 
+        		JOIN tbl_doctype T 
+        		ON T.doctype_code = D.fk_doctype_code
+        		LEFT JOIN (
+            		SELECT fk_doc_no
+            		FROM tbl_doc_file
+            		GROUP BY fk_doc_no
+        		) F ON F.fk_doc_no = D.doc_no
+        		JOIN tbl_employees E
+        		ON E.empid = D.fk_empid
+        		JOIN tbl_dept DP
+        		ON E.fk_dept_code = DP.dept_code
+
+          		<choose>
+            		<when test='searchType == "doctype_name" and searchWord != "" '>
+                		and lower(doctype_name) like '%'|| lower(#{searchWord}) || '%'
+		            </when>
+		            <when test='searchType == "doc_subject" and searchWord != ""'>
+		                and lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' 
+		            </when>
+		            <when test='searchType == "doc_content" and searchWord != ""'>
+		                and lower(doc_content) like '%'|| lower(#{searchWord}) || '%'
+		            </when>
+		            <when test='searchType == "doc_no" and searchWord != ""'>
+		                and lower(doc_no) like '%'|| lower(#{searchWord}) || '%'
+		            </when>
+		            <when test='searchType == "doc_subject_content" and searchWord != ""'>
+		                and (lower(doc_subject) like '%'|| lower(#{searchWord}) || '%' or lower(doc_content) like '%'|| lower(#{searchWord}) || '%')
+		            </when>
+		            <otherwise></otherwise>
+		     	</choose> 
+        		ORDER BY D.created_date DESC, D.doc_no DESC
+			) V
+		)T2
+		WHERE rno between #{startRno} and #{endRno}
+	</select>
+
+	<select id="getOneDocCommon" parameterType="HashMap" resultType="DocVO">
+		SELECT doc_no, fk_doctype_code, fk_empid, doc_subject, doc_content, to_char(created_date, 'yyyy-mm-dd') as created_date, doc_comment, doc_status, doctype_name, name, dept_name
+    			, CASE WHEN F.fk_doc_no IS NOT NULL THEN '1' ELSE '0' END AS isAttachment
+		FROM tbl_doc D
+		JOIN tbl_doctype T
+		ON T.doctype_code = D.fk_doctype_code
+		JOIN (
+		    SELECT empid, name, fk_dept_code
+			FROM tbl_employees
+		) E
+		ON E.empid = D.fk_empid
+		JOIN tbl_dept P
+		ON P.dept_code = E.fk_dept_code
+		LEFT JOIN ( 
+		    SELECT fk_doc_no
+		    FROM tbl_doc_file
+		    GROUP BY fk_doc_no
+		) F 
+		ON F.fk_doc_no = D.doc_no
+		WHERE D.doc_no = #{doc_no}
+	</select>
+ 	
+ 	<!-- 하나의 회의록 불러오기  -->
+ 	<select id="getOneMinutes" parameterType="HashMap" resultType="MinutesVO">
+ 		select MINUTES_NO, FK_DOC_NO, to_char(MEETING_DATE, 'yyyy-mm-dd') as MEETING_DATE, ATTENDEES, HOST_DEPT
+		from tbl_minutes
+		where fk_doc_no = #{doc_no}
+ 	</select>
+ 	
+ 	<!-- 하나의 연차신청서 불러오기  -->
+ 	<select id="getOneDayoff" parameterType="HashMap" resultType="com.spring.app.domain.DayoffVO">
+ 		select dayoff_no, fk_doc_no, to_char(startdate, 'yyyy-mm-dd') as startdate, to_char(enddate, 'yyyy-mm-dd') as enddate, start_half, end_half, offdays
+		from tbl_dayoff
+		where fk_doc_no = #{doc_no}
+ 	</select>
+ 	
+ 	
+ 	<select id="getApprovalList" parameterType="HashMap" resultType="ApprovalVO">
+ 		select A.approval_no, A.fk_doc_no, A.fk_empid, A.status, A.approval_comment, 
+ 				to_char(A.approval_date,'yyyy-mm-dd') as approval_date, A.level_no, E.name, E.sign_img, E.imgfilename ,J.job_name, D.doc_status
+		from tbl_approval A
+		join tbl_employees E
+		on E.empid = A.FK_EMPID
+		join tbl_job J
+		ON J.job_code = E.fk_job_code
+		JOIN tbl_doc D
+		ON D.doc_no = A.fk_doc_no
+		where fk_doc_no = #{doc_no}
+		order by level_no 
+ 	</select>
+ 	
+ 	<select id="getDocfiletList" parameterType="HashMap" resultType="DocfileVO">
+ 		select *
+		from tbl_doc_file
+		where fk_doc_no = #{doc_no}
+ 	</select>
+ 	
+ 	<select id="getDocfileOne" parameterType="String" resultType="DocfileVO">
+ 		select *
+		from tbl_doc_file
+		where doc_file_no = #{fileNo}
+ 	</select>
+ 	
+ 	<update id="updateDocOk" parameterType="HashMap">
+ 		UPDATE tbl_doc SET doc_status = to_number(#{doc_status}) 
+ 		WHERE doc_no = #{fk_doc_no}
+ 	</update>
+ 	
+ 	<update id="updateApprovalOk" parameterType="HashMap">
+		UPDATE tbl_approval SET status = 1, approval_date = to_date(#{approval_date}, 'yyyy-mm-dd hh24:mi:ss') 
+		<if test='approval_comment != ""'>
+		, approval_comment = #{approval_comment}
+		</if>
+ 		WHERE fk_doc_no = #{fk_doc_no} and fk_empid = #{loginEmpId}
+	</update>
+	
+	 <update id="updateAnnualLeave" parameterType="HashMap">
+		UPDATE tbl_employees SET ANNUAL_LEAVE = ANNUAL_LEAVE - #{offdays}
+ 		WHERE empid = #{loginEmpId}
+	</update>
+	
+	
+	
+	<update id="updateDocReject" parameterType="HashMap">
+ 		UPDATE tbl_doc SET doc_status = to_number(#{doc_status}) 
+ 		WHERE doc_no = #{fk_doc_no}
+ 	</update>
+ 	
+ 	<update id="updateApprovalReject" parameterType="HashMap">
+		UPDATE tbl_approval SET status = 1, approval_date = to_date(#{approval_date}, 'yyyy-mm-dd hh24:mi:ss') 
+		<if test='approval_comment != ""'>
+		, approval_comment = #{approval_comment}
+		</if>
+ 		WHERE fk_doc_no = #{fk_doc_no} and fk_empid = #{loginEmpId}
+	</update>
+	
+	
+	<update id="updateSignImg" parameterType="HashMap">
+ 		UPDATE tbl_employees SET SIGN_IMG = #{newFileName} 
+ 		WHERE EMPID = #{loginId}
+ 	</update>
+	
+</mapper>

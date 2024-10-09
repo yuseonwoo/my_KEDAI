@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="member">
+ 
+	<select id="getLoginMember" parameterType="HashMap" resultType="MemberVO">
+		SELECT empid, name, nickname, jubun, gender, age, email, mobile
+		     , postcode, address, detailaddress, extraaddress
+		     , imgfilename, orgimgfilename, hire_date, salary, commission_pct, point
+		     , fk_dept_code, dept_name, fk_job_code, job_name, dept_tel, sign_img, annual_leave, pwdchangegap
+		     , NVL(lastlogingap, trunc(months_between(sysdate, hire_date))) AS lastlogingap
+		FROM 
+		(
+		    select empid, name, nickname, jubun
+		         , func_gender(jubun) AS gender
+		         , func_age(jubun) AS age
+		         , email, mobile, postcode, address, detailaddress, extraaddress
+		         , imgfilename, orgimgfilename, to_char(hire_date, 'yyyy-mm-dd') AS hire_date, salary, commission_pct, point
+		         , fk_dept_code, nvl(D.dept_name, ' ') AS dept_name
+		         , fk_job_code, nvl(J.job_name, ' ') AS job_name
+		         , dept_tel, sign_img, annual_leave
+		         , trunc(months_between(sysdate, lastpwdchangedate)) AS pwdchangegap
+		    from tbl_employees E1 
+		    LEFT JOIN tbl_dept D ON E1.fk_dept_code = D.dept_code
+		    LEFT JOIN tbl_job J ON E1.fk_job_code = J.job_code
+		    where status = 1 and empid = #{empid} and pwd = #{pwd}
+		) E2 
+		CROSS JOIN 
+		( 
+		    select trunc(months_between(sysdate, max(logindate))) AS lastlogingap 
+		    from tbl_loginhistory 
+		    where fk_empid = #{empid}
+		) H
+	</select>
+	
+	<insert id="insert_tbl_loginhistory" parameterType="HashMap">
+		insert into tbl_loginhistory(history_seq, fk_empid, logindate, clientip)
+		values(loginhistory_seq.nextval, #{empid}, default, #{clientip})
+	</insert>
+	
+	<select id="idFind" parameterType="HashMap" resultType="String">
+		select empid 
+		from tbl_employees
+		where status = 1 and name = #{name} and email = #{email}
+	</select>
+	
+	<select id="pwdFind" parameterType="HashMap" resultType="String">
+		select pwd
+		from tbl_employees
+		where status = 1 and empid = #{empid} and name = #{name} and email = #{email}
+	</select>
+	
+	<update id="pwdUpdateEnd" parameterType="HashMap">
+		update tbl_employees set pwd = #{new_pwd}
+		where empid = #{empid}
+	</update>
+	
+	<update id="memberEditEnd" parameterType="HashMap">
+		update tbl_employees set pwd = #{pwd}
+		                       , name = #{name}
+		                       , nickname = #{nickname}
+		                       , email = #{email}
+		                       , mobile = #{mobile}
+		                       , postcode = #{postcode}
+		                       , address = #{address}
+		                       , detailaddress = #{detailaddress}
+		                       , extraaddress = #{extraaddress}
+		where empid = #{empid}
+	</update>
+	
+	<update id="pointUpdate" parameterType="HashMap">
+		update tbl_employees set point = point + (to_number(#{coinmoney})*0.01)
+		where empid = #{empid}
+	</update>
+
+</mapper>
